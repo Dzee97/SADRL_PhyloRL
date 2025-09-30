@@ -1,0 +1,47 @@
+
+RAxML-NG v. 1.2.2-master released on 30.04.2024 by The Exelixis Lab.
+Developed by: Alexey M. Kozlov and Alexandros Stamatakis.
+Contributors: Diego Darriba, Tomas Flouri, Benoit Morel, Sarah Lutteropp, Ben Bettisworth, Julia Haag, Anastasis Togkousidis.
+Latest version: https://github.com/amkozlov/raxml-ng
+Questions/problems/suggestions? Please visit: https://groups.google.com/forum/#!forum/raxml
+
+System: Intel(R) Core(TM) i7-6700HQ CPU @ 2.60GHz, 4 cores, 7 GB RAM
+
+RAxML-NG was called at 29-Aug-2025 16:34:33 as follows:
+
+./raxml-ng --start --msa ../dataset/050_258_p__Basidiomycota_c__Agaricomycetes_o__Boletales.fasta --model GTR+I+G --tree rand{10} --redo --prefix rand/start
+
+Analysis options:
+  run mode: Starting tree generation
+  start tree(s): random (10)
+  random seed: 1756478073
+  SIMD kernels: AVX2
+  parallelization: coarse-grained (auto), PTHREADS (auto)
+
+WARNING: Running in REDO mode: existing checkpoints are ignored, and all result files will be overwritten!
+
+[00:00:00] Reading alignment from file: ../dataset/050_258_p__Basidiomycota_c__Agaricomycetes_o__Boletales.fasta
+[00:00:00] Loaded alignment with 259 taxa and 1703 sites
+
+Alignment comprises 1 partitions and 1447 patterns
+
+Partition 0: noname
+Model: GTR+FO+I+G4m
+Alignment sites / patterns: 1703 / 1447
+Gaps: 68.01 %
+Invariant sites: 30.48 %
+
+
+NOTE: Binary MSA file created: rand/start.raxml.rba
+
+[00:00:00] Generating 10 random starting tree(s) with 259 taxa
+
+All starting trees saved to: /home/dzee/Documents/Projects/phylo-rl/raxml-ng/rand/start.raxml.startTree
+
+
+Execution log saved to: /home/dzee/Documents/Projects/phylo-rl/raxml-ng/rand/start.raxml.log
+
+Analysis started: 29-Aug-2025 16:34:33 / finished: 29-Aug-2025 16:34:33
+
+Elapsed time: 0.024 seconds
+
