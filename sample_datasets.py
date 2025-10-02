@@ -169,7 +169,7 @@ if __name__ == "__main__":
     sample_dataset(input_fasta=Path("datasets/051_856_p__Basidiomycota_c__Agaricomycetes_o__Russulales.fasta"),
                    outdir=Path("OUTTEST"),
                    num_samples=10,
-                   sample_size=6,
+                   sample_size=7,
                    num_pars_trees=10,
                    num_rand_trees=100,
                    num_bootstrap=1000,

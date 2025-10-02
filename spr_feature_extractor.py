@@ -1,4 +1,5 @@
 from ete3 import Tree
+import numpy as np
 import math
 
 
@@ -233,13 +234,25 @@ class TreePreprocessor:
                 c_length = self.subtree_length[self.tree] - b_length
                 c_max = self._max_edge_excluding_subtrees(self.tree, [outer_prune_node])
 
-                c1_leaves = self.subtree_leaves[outer_regraft_node]
-                c1_length = self.subtree_length[outer_regraft_node]
-                c1_max = self.subtree_max_edge[outer_regraft_node]
+                if inner_regraft_node == child_regraft_node:
+                    c2_leaves = self.subtree_leaves[inner_regraft_node] - b_leaves
+                    c2_length = self.subtree_length[inner_regraft_node] - b_length - inner_regraft_node.dist
+                    c2_max = max(self._max_edge_excluding_subtrees(
+                        child, [outer_prune_node]) for child in inner_regraft_node.children)
 
-                c2_leaves = c_leaves - c1_leaves
-                c2_length = c_length - c1_length
-                c2_max = self._max_edge_excluding_subtrees(self.tree, [outer_prune_node, outer_regraft_node])
+                    c1_leaves = c_leaves - c2_leaves
+                    c1_length = c_length - c2_length
+                    c1_max = max(self._max_edge_excluding_subtrees(
+                        self.tree, [inner_regraft_node]), inner_regraft_node.dist)
+
+                else:
+                    c1_leaves = self.subtree_leaves[outer_regraft_node]
+                    c1_length = self.subtree_length[outer_regraft_node]
+                    c1_max = self.subtree_max_edge[outer_regraft_node]
+
+                    c2_leaves = c_leaves - c1_leaves
+                    c2_length = c_length - c1_length
+                    c2_max = self._max_edge_excluding_subtrees(self.tree, [outer_prune_node, outer_regraft_node])
 
             f8, f9, f10, f11 = b_leaves, c_leaves, c1_leaves, c2_leaves
             f12, f13, f14, f15 = b_length, c_length, c1_length, c2_length
@@ -268,10 +281,10 @@ class TreePreprocessor:
 
             new_regraft_split = self._min_subtract_split(prune_split, regraft_split)
 
-            return [f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19,
-                    min_prune_split, min_regraft_split, new_prune_split, new_regraft_split]
+            return np.array([f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19])  # ,
+            # min_prune_split, min_regraft_split, new_prune_split, new_regraft_split]
 
-        results = [compute_move_specific_features(move) for move in possible_moves]
+        results = np.array([compute_move_specific_features(move) for move in possible_moves])
 
         return results
 
@@ -318,6 +331,8 @@ def print_readable_features(f):
 
 
 if __name__ == "__main__":
+    import pandas as pd
+
     # Build tree with branch lengths
     t = Tree("(B:2,C:4,((D:5,(E:6,F:7)Int2:8)Int3:9,(G:3,A:1)Int1:10)Int4:11)Int0;", format=1)
     print(t.get_ascii(attributes=["name", "dist"]))
@@ -325,35 +340,13 @@ if __name__ == "__main__":
     # Preprocess
     lca_tree = TreePreprocessor(t)
 
-    # Print SPR moves
+    # SPR moves
     moves = lca_tree.get_possible_spr_moves(radius=1)
-    # moves = [
-    #     # 1. Root in prune subtree
-    #     # (inner_prune_node: child, inner_regraft_node: parent)
-    #     ((t & "Int3", t & "Int4", t & "Int3"),
-    #      (t & "Int2", t & "F", t & "F"), t & "Int3"),
-    #     # 2. Regraft edge is descendant from prune parent
-    #     # (inner_prune_node: parent, inner_regraft_node: parent)
-    #     ((t & "Int3", t & "D", t & "D"),
-    #      (t & "Int2", t & "F", t & "F"), t & "Int3"),
-    #     # 3. Prune edge is descendant from regraft child
-    #     # (inner_prune_node: parent, inner_regraft_node: child)
-    #     ((t & "Int2", t & "F", t & "F"),
-    #      (t & "Int3", t & "Int4", t & "Int3"), t & "Int3"),
-    #     # 4. Prune edge is descendant from regraft parent
-    #     # (inner_prune_node: parent, inner_regraft_node: parent)
-    #     ((t & "Int2", t & "F", t & "F"),
-    #      (t & "Int3", t & "D", t & "D"), t & "Int3"),
-    #     # 5. Prune and regraft edges have lca node not in both edges
-    #     # (inner_prune_node: parent, inner_regraft_node: parent)
-    #     ((t & "Int2", t & "F", t & "F"),
-    #      (t & "Int1", t & "G", t & "G"), t & "Int4"),
-    #     # 6. Prune parent is root
-    #     # (inner_prune_node: parent, inner_regraft_node: parent)
-    #     ((t & "Int0", t & "C", t & "C"),
-    #      (t & "Int4", t & "Int3", t & "Int3"), t & "Int0")
-    # ]
     feats = lca_tree.extract_all_spr_features(moves)
+
+    # Validation features
+    df = pd.read_csv("spr_test.csv")
+
     print(f"Found {len(moves)} SPR moves:")
     for i, move in enumerate(moves):
         prune_edge, regraft_edge, lca = move
@@ -361,4 +354,9 @@ if __name__ == "__main__":
               f"Regraft {regraft_edge[0].name}->{regraft_edge[1].name}, "
               f"LCA {lca.name}")
         print_readable_features(feats[i])
+        validation_row = df[(df["inner_prune"] == prune_edge[0].name) &
+                            (df["outer_prune"] == prune_edge[1].name) &
+                            (df["inner_regraft"] == regraft_edge[0].name) &
+                            (df["outer_regraft"] == regraft_edge[1].name)].iloc[0, 4:].astype(float)
+        np.testing.assert_array_equal(feats[i], validation_row)
         # print(perform_spr_move(t, move).get_ascii(attributes=["name", "dist"]))
