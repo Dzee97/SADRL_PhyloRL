@@ -334,29 +334,39 @@ if __name__ == "__main__":
     import pandas as pd
 
     # Build tree with branch lengths
-    t = Tree("(B:2,C:4,((D:5,(E:6,F:7)Int2:8)Int3:9,(G:3,A:1)Int1:10)Int4:11)Int0;", format=1)
-    print(t.get_ascii(attributes=["name", "dist"]))
-
-    # Preprocess
-    lca_tree = TreePreprocessor(t)
-
-    # SPR moves
-    moves = lca_tree.get_possible_spr_moves(radius=1)
-    feats = lca_tree.extract_all_spr_features(moves)
+    t_Int0 = Tree("(B:2,C:4,((D:5,(E:6,F:7)Int2:8)Int3:9,(G:3,A:1)Int1:10)Int4:11)Int0;", format=1)
+    t_Int1 = Tree("(G:3,A:1,((B:2,C:4)Int0:11,(D:5,(E:6,F:7)Int2:8)Int3:9)Int4:10)Int1;", format=1)
+    t_Int2 = Tree("(E:6,F:7,(D:5,((B:2,C:4)Int0:11,(G:3,A:1)Int1:10)Int4:9)Int3:8)Int2;", format=1)
+    t_Int3 = Tree("(D:5,(E:6,F:7)Int2:8,((B:2,C:4)Int0:11,(G:3,A:1)Int1:10)Int4:9)Int3;", format=1)
+    t_Int4 = Tree("((B:2,C:4)Int0:11,(G:3,A:1)Int1:10,(D:5,(E:6,F:7)Int2:8)Int3:9)Int4;", format=1)
+    trees = {"Int0": t_Int0, "Int1": t_Int1, "Int2": t_Int2, "Int3": t_Int3, "Int4": t_Int4}
 
     # Validation features
     df = pd.read_csv("spr_test.csv")
 
-    print(f"Found {len(moves)} SPR moves:")
-    for i, move in enumerate(moves):
-        prune_edge, regraft_edge, lca = move
-        print(f"Prune {prune_edge[0].name}->{prune_edge[1].name}, "
-              f"Regraft {regraft_edge[0].name}->{regraft_edge[1].name}, "
-              f"LCA {lca.name}")
-        print_readable_features(feats[i])
-        validation_row = df[(df["inner_prune"] == prune_edge[0].name) &
-                            (df["outer_prune"] == prune_edge[1].name) &
-                            (df["inner_regraft"] == regraft_edge[0].name) &
-                            (df["outer_regraft"] == regraft_edge[1].name)].iloc[0, 4:].astype(float)
-        np.testing.assert_array_equal(feats[i], validation_row)
-        # print(perform_spr_move(t, move).get_ascii(attributes=["name", "dist"]))
+    for root_node, t in trees.items():
+        print(f"\n=== Rooting at {root_node} ===")
+
+        # Preprocess
+        lca_tree = TreePreprocessor(t)
+
+        # SPR moves
+        moves = lca_tree.get_possible_spr_moves(radius=10)
+        feats = lca_tree.extract_all_spr_features(moves)
+
+        # Validation features
+        df = pd.read_csv("spr_test.csv")
+
+        print(f"Found {len(moves)} SPR moves:\n")
+        for i, move in enumerate(moves):
+            prune_edge, regraft_edge, lca = move
+            print(f"Prune {prune_edge[0].name}->{prune_edge[1].name}, "
+                  f"Regraft {regraft_edge[0].name}->{regraft_edge[1].name}, "
+                  f"LCA {lca.name}")
+            # print_readable_features(feats[i])
+            validation_row = df[(df["inner_prune"] == prune_edge[0].name) &
+                                (df["outer_prune"] == prune_edge[1].name) &
+                                (df["inner_regraft"] == regraft_edge[0].name) &
+                                (df["outer_regraft"] == regraft_edge[1].name)].iloc[0, 4:].astype(float)
+            np.testing.assert_array_equal(feats[i], validation_row)
+            # print(perform_spr_move(t, move).get_ascii(attributes=["name", "dist"]))
