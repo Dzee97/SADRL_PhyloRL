@@ -259,30 +259,32 @@ class TreePreprocessor:
             f16, f17, f18, f19 = b_max, c_max, c1_max, c2_max
 
             prune_split: set = self.subtree_split[child_prune_node]
-            min_prune_split = prune_split
+            min_prune_split = self._min_tree_split(prune_split)
             # prune_split_support_nj = split_support_nj[min_prune_split]
             # prune_split_support_upgma = split_support_upgma[min_prune_split]
 
             regraft_split: set = self.subtree_split[child_regraft_node]
-            min_regraft_split = regraft_split
+            min_regraft_split = self._min_tree_split(regraft_split)
             # regraft_split_support_nj = split_support_nj[min_regraft_split]
             # regraft_split_support_upgma = split_support_upgma[min_regraft_split]
 
             if inner_prune_node == child_prune_node or inner_prune_node == self.tree:
                 untouched_subtree = [
-                    child for child in inner_prune_node.children if not self.is_descendant(outer_regraft_node, child)][0]
+                    child for child in inner_prune_node.children if not self.is_descendant(outer_regraft_node, child)
+                    and child != child_prune_node][0]
             elif self.is_descendant(outer_regraft_node, inner_prune_node):
                 untouched_subtree = inner_prune_node
             else:
                 untouched_subtree = [child for child in inner_prune_node.children if child != child_prune_node][0]
             new_prune_split = self.subtree_split[untouched_subtree]
+            min_new_prune_split = self._min_tree_split(new_prune_split)
             # new_branch_split_support_nj = split_support_nj[new_branch_split]
             # new_branch_split_support_upgma = split_support_upgma[new_branch_split]
 
-            new_regraft_split = self._min_subtract_split(prune_split, regraft_split)
+            min_new_regraft_split = self._min_subtract_split(prune_split, regraft_split)
 
-            return np.array([f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19])  # ,
-            # min_prune_split, min_regraft_split, new_prune_split, new_regraft_split]
+            return np.array([f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19,
+                             min_prune_split, min_regraft_split, min_new_prune_split, min_new_regraft_split])
 
         results = np.array([compute_move_specific_features(move) for move in possible_moves])
 
@@ -367,6 +369,12 @@ if __name__ == "__main__":
             validation_row = df[(df["inner_prune"] == prune_edge[0].name) &
                                 (df["outer_prune"] == prune_edge[1].name) &
                                 (df["inner_regraft"] == regraft_edge[0].name) &
-                                (df["outer_regraft"] == regraft_edge[1].name)].iloc[0, 4:].astype(float)
-            np.testing.assert_array_equal(feats[i], validation_row)
+                                (df["outer_regraft"] == regraft_edge[1].name)].iloc[0, 4:]
+
+            validation_feats = validation_row[:19].astype(float)
+            np.testing.assert_array_equal(feats[i, :19], validation_feats)
+
+            validation_splits = [set(split.split(',')) for split in validation_row[19:]]
+            np.testing.assert_array_equal(feats[i, 19:], validation_splits)
+
             # print(perform_spr_move(t, move).get_ascii(attributes=["name", "dist"]))
