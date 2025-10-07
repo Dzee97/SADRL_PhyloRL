@@ -126,6 +126,8 @@ class PhyloEnv:
             if not best_tree_file.exists():
                 raise FileNotFoundError("RAxML-NG did not produce a .bestTree file.")
             optimized_tree = Tree(open(best_tree_file).read(), format=1)
+            # fix removal of root node name
+            optimized_tree.name = tree.name
 
             return optimized_tree, ll
 
@@ -138,10 +140,12 @@ if __name__ == "__main__":
     )
     tree, moves, feats = env.reset()
     done = False
+    total_reward = 0
 
     while not done:
-        print(tree.get_ascii(attributes=["name", "dist"]))
-
         move = random.choice(moves)
-        print(move)
         (tree, moves, feats), reward, done = env.step(tree, move)
+        total_reward += reward
+
+    print(f"Total reward: {total_reward}")
+    print(f"Real scale: {total_reward * abs(env.current_sample['norm_ll'])}")
