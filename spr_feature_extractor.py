@@ -74,14 +74,7 @@ class TreePreprocessor:
 
     def _min_tree_split(self, split_set):
         all_set = self.subtree_split[self.tree]
-        return split_set if len(split_set) <= self.subtree_leaves[self.tree] / 2 else all_set - split_set
-
-    def _min_combined_split(self, split1: set, split2: set):
-        if split1.issuperset(split2):
-            combined_split = split1 - split2
-        else:
-            combined_split = split1.union(split2)
-        return self._min_tree_split(combined_split)
+        return frozenset(split_set if len(split_set) <= self.subtree_leaves[self.tree] / 2 else all_set - split_set)
 
     def _min_subtract_split(self, split1: set, split2: set):
         if split1.issuperset(split2):
@@ -175,7 +168,7 @@ class TreePreprocessor:
 
         return possible_moves
 
-    def extract_all_spr_features(self, possible_moves, split_support_nj=None, split_support_upgma=None):
+    def extract_all_spr_features(self, possible_moves, split_support_nj, split_support_upgma):
         """
         1: Total branch length
         2: Longest branch
@@ -260,13 +253,13 @@ class TreePreprocessor:
 
             prune_split: set = self.subtree_split[child_prune_node]
             min_prune_split = self._min_tree_split(prune_split)
-            # prune_split_support_nj = split_support_nj[min_prune_split]
-            # prune_split_support_upgma = split_support_upgma[min_prune_split]
+            f20 = split_support_upgma[min_prune_split]
+            f24 = split_support_nj[min_prune_split]
 
             regraft_split: set = self.subtree_split[child_regraft_node]
             min_regraft_split = self._min_tree_split(regraft_split)
-            # regraft_split_support_nj = split_support_nj[min_regraft_split]
-            # regraft_split_support_upgma = split_support_upgma[min_regraft_split]
+            f21 = split_support_upgma[min_regraft_split]
+            f25 = split_support_nj[min_regraft_split]
 
             if inner_prune_node == child_prune_node or inner_prune_node == self.tree:
                 untouched_subtree = [
@@ -278,13 +271,15 @@ class TreePreprocessor:
                 untouched_subtree = [child for child in inner_prune_node.children if child != child_prune_node][0]
             new_prune_split = self.subtree_split[untouched_subtree]
             min_new_prune_split = self._min_tree_split(new_prune_split)
-            # new_branch_split_support_nj = split_support_nj[new_branch_split]
-            # new_branch_split_support_upgma = split_support_upgma[new_branch_split]
+            f22 = split_support_upgma[min_new_prune_split]
+            f26 = split_support_nj[min_new_prune_split]
 
             min_new_regraft_split = self._min_subtract_split(prune_split, regraft_split)
+            f23 = split_support_upgma[min_new_regraft_split]
+            f27 = split_support_nj[min_new_regraft_split]
 
             return np.array([f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19,
-                             min_prune_split, min_regraft_split, min_new_prune_split, min_new_regraft_split])
+                             f20, f21, f22, f23, f24, f25, f26, f27])
 
         results = np.array([compute_move_specific_features(move) for move in possible_moves])
 
@@ -346,6 +341,13 @@ if __name__ == "__main__":
     # Validation features
     df = pd.read_csv("spr_test.csv")
 
+    df_support = pd.read_csv("spr_test_support.csv")
+    split_support_nj,  split_support_upgma = {}, {}
+    for i, row in df_support.iterrows():
+        split = frozenset(row["split"].split(','))
+        split_support_nj[split] = row["nj"]
+        split_support_upgma[split] = row["upgma"]
+
     for root_node, t in trees.items():
         print(f"\n=== Rooting at {root_node} ===")
 
@@ -354,7 +356,7 @@ if __name__ == "__main__":
 
         # SPR moves
         moves = lca_tree.get_possible_spr_moves(radius=10)
-        feats = lca_tree.extract_all_spr_features(moves)
+        feats = lca_tree.extract_all_spr_features(moves, split_support_nj, split_support_upgma)
 
         # Validation features
         df = pd.read_csv("spr_test.csv")
@@ -371,10 +373,13 @@ if __name__ == "__main__":
                                 (df["inner_regraft"] == regraft_edge[0].name) &
                                 (df["outer_regraft"] == regraft_edge[1].name)].iloc[0, 4:]
 
-            validation_feats = validation_row[:19].astype(float)
-            np.testing.assert_array_equal(feats[i, :19], validation_feats)
+            validation_topo_feats = validation_row[:19].astype(float)
+            validation_splits = [frozenset(split.split(',')) for split in validation_row[19:]]
+            validation_support_upgma = [split_support_upgma[split] for split in validation_splits]
+            validation_support_nj = [split_support_nj[split] for split in validation_splits]
 
-            validation_splits = [set(split.split(',')) for split in validation_row[19:]]
-            np.testing.assert_array_equal(feats[i, 19:], validation_splits)
+            validation_feats = np.concat((validation_topo_feats, validation_support_upgma, validation_support_nj))
+
+            np.testing.assert_array_equal(feats[i], validation_feats)
 
             # print(perform_spr_move(t, move).get_ascii(attributes=["name", "dist"]))
