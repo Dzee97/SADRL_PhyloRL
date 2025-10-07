@@ -34,7 +34,7 @@ def create_subsample_fasta(full_fasta: Path, out_fasta: Path, sample_names: List
 def tree_splits(tree: Phylo.BaseTree.Tree) -> Set[FrozenSet[str]]:
     leaves = [leaf.name for leaf in tree.get_terminals()]
     all_set = set(leaves)
-    splits = set()
+    splits = set(frozenset({leaf}) for leaf in leaves)
     for clade in tree.get_nonterminals():
         side = set(t.name for t in clade.get_terminals())
         if len(side) in (0, 1, len(all_set)):
@@ -69,8 +69,9 @@ def bootstrap_one(diffs: np.ndarray, ncols: int, ids: List[str]):
         row = [float(distances[i, j]) for j in range(i + 1)]
         tri_matrix.append(row)
     dm = DistanceMatrix(names=ids, matrix=tri_matrix)
-    tree = DistanceTreeConstructor().nj(dm)
-    return tree_splits(tree)
+    tree_upgma = DistanceTreeConstructor().upgma(dm)
+    tree_nj = DistanceTreeConstructor().nj(dm)
+    return tree_splits(tree_upgma), tree_splits(tree_nj)
 
 
 def compute_bootstrap_support(aln: MultipleSeqAlignment, num_bootstrap: int, n_jobs: int = -1):
@@ -83,13 +84,15 @@ def compute_bootstrap_support(aln: MultipleSeqAlignment, num_bootstrap: int, n_j
         delayed(bootstrap_one)(diffs, ncols, ids) for _ in range(num_bootstrap)
     )
 
-    split_counts = Counter()
+    split_counts_upgma, split_counts_nj = Counter(), Counter()
     for splits in results:
-        split_counts.update(splits)
-    for s in split_counts:
-        split_counts[s] /= num_bootstrap
+        split_counts_upgma.update(splits[0])
+        split_counts_nj.update(splits[1])
+    for split_counts in (split_counts_upgma, split_counts_nj):
+        for s in split_counts:
+            split_counts[s] /= num_bootstrap
 
-    return split_counts
+    return split_counts_upgma, split_counts_nj
 
 
 # ---------- Main function ----------
@@ -158,7 +161,11 @@ def sample_dataset(input_fasta: Path, outdir: Path, num_samples: int, sample_siz
 
         # Create bootstrap trees and count splits
         aln = AlignIO.read(str(sample_fasta), "fasta")
-        split_support_nj = compute_bootstrap_support(aln, num_bootstrap, n_jobs=-1)
+        split_support_upgma, split_support_nj = compute_bootstrap_support(aln, num_bootstrap, n_jobs=-1)
+
+        split_support_upgma_pkl = sample_dir / "split_support_upgma.pkl"
+        with open(split_support_upgma_pkl, "wb") as f:
+            pickle.dump(split_support_upgma, f)
 
         split_support_nj_pkl = sample_dir / "split_support_nj.pkl"
         with open(split_support_nj_pkl, "wb") as f:

@@ -381,5 +381,3 @@ if __name__ == "__main__":
             validation_feats = np.concat((validation_topo_feats, validation_support_upgma, validation_support_nj))
 
             np.testing.assert_array_equal(feats[i], validation_feats)
-
-            # print(perform_spr_move(t, move).get_ascii(attributes=["name", "dist"]))
