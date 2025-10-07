@@ -1,11 +1,23 @@
 from ete3 import Tree
 import numpy as np
-import math
+from typing import NamedTuple
+
+
+class Edge(NamedTuple):
+    inner_node: Tree
+    outer_node: Tree
+    child_node: Tree
+
+
+class SPRMove(NamedTuple):
+    prune_edge: Edge
+    regraft_edge: Edge
+    lca: Tree
 
 
 class TreePreprocessor:
     def __init__(self, tree: Tree):
-        self.tree = tree
+        self.tree = tree.copy()
 
         # Euler tour arrays
         self.euler = []
@@ -26,11 +38,16 @@ class TreePreprocessor:
         self.edges = []
 
         # Run preprocessing
-        self._dfs(self.tree, None, 0, 0.0)
+        self._dfs(self.tree, None, 0, 0.0, 0)
         self._build_sparse_table()
 
-    def _dfs(self, node, parent, d, dist):
+    def _dfs(self, node, parent, d, dist, name_counter):
         """DFS that fills all metadata + Euler tour arrays"""
+        # Ensure that every internal node has a name
+        if not node.name:
+            node.name = f"Int{name_counter}"
+            name_counter += 1
+
         self.tin[node] = self.time
         self.time += 1
 
@@ -54,7 +71,7 @@ class TreePreprocessor:
         split = {node.name} if node.is_leaf() else set()
 
         for child in node.children:
-            self._dfs(child, node, d+1, dist + child.dist)
+            name_counter = self._dfs(child, node, d+1, dist + child.dist, name_counter)
             self.euler.append(node)
             self.depth.append(d)
 
@@ -71,6 +88,8 @@ class TreePreprocessor:
 
         self.tout[node] = self.time
         self.time += 1
+
+        return name_counter
 
     def _min_tree_split(self, split_set):
         all_set = self.subtree_split[self.tree]
@@ -142,8 +161,8 @@ class TreePreprocessor:
         """
         possible_moves = []
 
-        for i, (u, up_u) in enumerate(self.edges):
-            for j, (v, up_v) in enumerate(self.edges):
+        for (u, up_u) in self.edges:
+            for (v, up_v) in self.edges:
                 # skip if edges are the same or they are connected
                 if v == u or v == up_u or up_v == up_u or up_v == u:
                     continue
@@ -163,10 +182,12 @@ class TreePreprocessor:
                     self.depth_count[inner_regraft_node] - 2 * self.depth_count[lca]
 
                 if radius is None or dist <= radius:
-                    possible_moves.append(((inner_prune_node, outer_prune_node, child_prune_node),
-                                          (inner_regraft_node, outer_regraft_node, child_regraft_node), lca))
+                    prune_edge = Edge(inner_prune_node, outer_prune_node, child_prune_node)
+                    regraft_edge = Edge(inner_regraft_node, outer_regraft_node, child_regraft_node)
+                    spr_move = SPRMove(prune_edge, regraft_edge, lca)
+                    possible_moves.append(spr_move)
 
-        return possible_moves
+        return self.tree, possible_moves
 
     def extract_all_spr_features(self, possible_moves, split_support_nj, split_support_upgma):
         """
@@ -176,7 +197,8 @@ class TreePreprocessor:
         5: Topology distance between prune and regraft
         6: Branch length distance between prune and regraft
         7: New branch length due to pruning
-        8-11: Number of leaves in four subtrees (prune subtree "b", remain subtree "c", regraft right "c1", regraft left "c2")
+        8-11: Number of leaves in four subtrees (prune subtree "b", remain subtree "c", regraft right "c1",
+              regraft left "c2")
         12-15: Sum of branch lengths in four subtrees
         16-19: Longest branch in four subtrees
         """
@@ -352,11 +374,11 @@ if __name__ == "__main__":
         print(f"\n=== Rooting at {root_node} ===")
 
         # Preprocess
-        lca_tree = TreePreprocessor(t)
+        preproc = TreePreprocessor(t)
 
         # SPR moves
-        moves = lca_tree.get_possible_spr_moves(radius=10)
-        feats = lca_tree.extract_all_spr_features(moves, split_support_nj, split_support_upgma)
+        annotated_tree, moves = preproc.get_possible_spr_moves(radius=10)
+        feats = preproc.extract_all_spr_features(moves, split_support_nj, split_support_upgma)
 
         # Validation features
         df = pd.read_csv("spr_test.csv")
@@ -381,3 +403,10 @@ if __name__ == "__main__":
             validation_feats = np.concat((validation_topo_feats, validation_support_upgma, validation_support_nj))
 
             np.testing.assert_array_equal(feats[i], validation_feats)
+
+            new_tree = perform_spr_move(annotated_tree, move)
+            node_names = set()
+            for node in new_tree.iter_descendants():
+                assert node.name != ""
+                assert node.name not in node_names
+                node_names.add(node.name)
