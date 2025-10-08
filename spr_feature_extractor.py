@@ -93,7 +93,14 @@ class TreePreprocessor:
 
     def _min_tree_split(self, split_set):
         all_set = self.subtree_split[self.tree]
-        return frozenset(split_set if len(split_set) <= self.subtree_leaves[self.tree] / 2 else all_set - split_set)
+        if len(split_set) < self.subtree_leaves[self.tree] / 2:
+            min_split = split_set
+        elif len(split_set) == self.subtree_leaves[self.tree] / 2 and sorted(all_set)[0] in split_set:
+            min_split = split_set
+        else:
+            complement_set = all_set - split_set
+            min_split = complement_set
+        return frozenset(min_split)
 
     def _min_subtract_split(self, split1: set, split2: set):
         if split1.issuperset(split2):
@@ -154,7 +161,7 @@ class TreePreprocessor:
         """Check if u is in the subtree of v"""
         return self.tin[v] <= self.tin[u] and self.tout[u] <= self.tout[v]
 
-    def get_possible_spr_moves(self, radius=None):
+    def get_possible_spr_moves(self, radius=None, prune_leaves=True):
         """
         Generate all valid SPR moves within a given radius.
         Each move is (prune_edge, regraft_edge).
@@ -162,6 +169,8 @@ class TreePreprocessor:
         possible_moves = []
 
         for (u, up_u) in self.edges:
+            if not prune_leaves and u.is_leaf():
+                continue
             for (v, up_v) in self.edges:
                 # skip if edges are the same or they are connected
                 if v == u or v == up_u or up_v == up_u or up_v == u:
@@ -377,7 +386,7 @@ if __name__ == "__main__":
         preproc = TreePreprocessor(t)
 
         # SPR moves
-        annotated_tree, moves = preproc.get_possible_spr_moves(radius=10)
+        annotated_tree, moves = preproc.get_possible_spr_moves(prune_leaves=False)
         feats = preproc.extract_all_spr_features(moves, split_support_nj, split_support_upgma)
 
         # Validation features

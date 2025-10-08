@@ -40,8 +40,11 @@ def tree_splits(tree: Phylo.BaseTree.Tree) -> Set[FrozenSet[str]]:
         if len(side) in (0, 1, len(all_set)):
             continue
         complement = all_set - side
-        canonical = frozenset(side if len(side) <= len(complement) else complement)
-        splits.add(canonical)
+        if len(side) < len(complement) or (len(side) == len(complement) and sorted(all_set)[0] in side):
+            canonical = side
+        else:
+            canonical = complement
+        splits.add(frozenset(canonical))
     return splits
 
 # --- More Efficient Bootstrap ----
