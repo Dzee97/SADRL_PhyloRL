@@ -187,7 +187,7 @@ if __name__ == "__main__":
                    num_samples=1,
                    sample_size=7,
                    num_pars_trees=10,
-                   num_rand_trees=100,
+                   num_rand_trees=1,
                    num_bootstrap=1000,
                    raxmlng_path=Path("raxmlng/raxml-ng"),
                    evo_model="GTR+I+G")
