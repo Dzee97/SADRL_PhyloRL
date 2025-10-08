@@ -51,7 +51,13 @@ def tree_splits(tree: Phylo.BaseTree.Tree) -> Set[FrozenSet[str]]:
 
 
 def aln_to_numpy(aln: MultipleSeqAlignment):
-    return np.array([list(str(rec.seq)) for rec in aln], dtype="U1")
+    # Convert alignment to a NumPy array of shape (n_sequences, n_columns)
+    arr = np.array([list(str(rec.seq)) for rec in aln], dtype="U1")
+    # Boolean mask for columns that are *not* all gaps
+    non_gap_mask = ~(arr == '-').all(axis=0)
+    # Apply mask to trim all-gap columns
+    trimmed_arr = arr[:, non_gap_mask]
+    return trimmed_arr
 
 
 def precompute_pairwise_diffs(arr: np.ndarray):
