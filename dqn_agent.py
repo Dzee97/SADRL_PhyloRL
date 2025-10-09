@@ -19,6 +19,8 @@ class QNetwork(nn.Module):
             nn.ReLU(),
             nn.Linear(hidden_dim, hidden_dim),
             nn.ReLU(),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.ReLU(),
             nn.Linear(hidden_dim, 1)
         )
 
@@ -87,7 +89,7 @@ class DQNAgent:
                 q_vals = self.q_net(x)
                 return int(torch.argmax(q_vals).item()), eps
 
-    def update(self, batch_size=64):
+    def update(self, batch_size=128):
         if len(self.replay) < batch_size:
             return None
 
@@ -121,3 +123,7 @@ class DQNAgent:
             self.target_net.load_state_dict(self.q_net.state_dict())
 
         return loss.item()
+
+    def save(self, path: Path):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        torch.save(self.q_net.state_dict(), str(path))

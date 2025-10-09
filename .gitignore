@@ -1,3 +1,4 @@
 /.venv
 /OUTTEST
-__pycache__
+/__pycache__
+/checkpoints
