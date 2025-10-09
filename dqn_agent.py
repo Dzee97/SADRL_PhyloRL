@@ -51,12 +51,12 @@ class DQNAgent:
     def __init__(
             self,
             feature_dim,
-            lr=1e-4,
-            gamma=0.99,
+            lr=1e-5,
+            gamma=0.9,
             epsilon_start=1.0,
             epsilon_end=0.05,
-            epsilon_decay=20_000,
-            target_update=100,
+            epsilon_decay=10_000,
+            target_update=1000,
             device=None
     ):
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
@@ -80,12 +80,12 @@ class DQNAgent:
         self.step_count += 1
 
         if random.random() < eps:
-            return random.randrange(len(feats))
+            return random.randrange(len(feats)), eps
         else:
             with torch.no_grad():
                 x = torch.tensor(feats, dtype=torch.float32, device=self.device)
                 q_vals = self.q_net(x)
-                return int(torch.argmax(q_vals).item())
+                return int(torch.argmax(q_vals).item()), eps
 
     def update(self, batch_size=64):
         if len(self.replay) < batch_size:

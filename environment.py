@@ -68,7 +68,7 @@ class PhyloEnv:
         """
         new_tree = perform_spr_move(annotated_tree, move)
         new_tree, new_ll = self._evaluate_likelihood(new_tree)
-        reward = (new_ll - self.current_ll) / abs(self.current_sample["norm_ll"])
+        reward = (new_ll - self.current_ll)  # / abs(self.current_sample["norm_ll"])
 
         self.current_tree = new_tree
         self.current_ll = new_ll
