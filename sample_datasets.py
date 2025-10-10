@@ -183,11 +183,11 @@ def sample_dataset(input_fasta: Path, outdir: Path, num_samples: int, sample_siz
 
 if __name__ == "__main__":
     sample_dataset(input_fasta=Path("datasets/051_856_p__Basidiomycota_c__Agaricomycetes_o__Russulales.fasta"),
-                   outdir=Path("OUTTEST"),
+                   outdir=Path("OUTTEST10"),
                    num_samples=1,
                    sample_size=7,
                    num_pars_trees=10,
-                   num_rand_trees=1,
+                   num_rand_trees=10,
                    num_bootstrap=1000,
                    raxmlng_path=Path("raxmlng/raxml-ng"),
                    evo_model="GTR+I+G")

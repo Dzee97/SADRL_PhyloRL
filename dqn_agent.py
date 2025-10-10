@@ -53,7 +53,7 @@ class DQNAgent:
     def __init__(
             self,
             feature_dim,
-            lr=1e-5,
+            lr=1e-4,
             gamma=0.9,
             epsilon_start=1.0,
             epsilon_end=0.05,

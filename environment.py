@@ -51,35 +51,50 @@ class PhyloEnv:
         self.current_sample = None
         self.current_tree = None
         self.current_ll = None
+        self.current_moves = None
+        self.current_feats = None
+
+        self.neighbor_cache = {}
+        self.cache_hits = 0
 
     def reset(self):
         """Pick a random sample and random starting tree, prepare RAxML working dir in RAM."""
         self.current_sample = random.choice(self.samples)
-        start_tree = random.choice(self.current_sample["rand_trees_list"])
-        self.current_tree = Tree(start_tree, format=1)
-        self.current_tree, self.current_ll = self._evaluate_likelihood(self.current_tree)
+        start_tree_nwk = random.choice(self.current_sample["rand_trees_list"])
+        start_tree = Tree(start_tree_nwk, format=1)
+        start_tree_optim, self.current_ll = self._evaluate_likelihood(start_tree)
+        self.current_tree, self.current_moves, self.current_feats = self._extract_features(start_tree_optim)
         self.step_count = 0
-        return self._extract_features()
+        self.cache_hits = 0
+        return self.current_feats
 
-    def step(self, annotated_tree, move):
+    def step(self, move_idx):
         """
         Perform one SPR move and evaluate reward.
         `move` is a tuple of (prune_edge, regraft_edge) produced by TreePreprocessor.
         """
-        new_tree = perform_spr_move(annotated_tree, move)
-        new_tree, new_ll = self._evaluate_likelihood(new_tree)
-        reward = (new_ll - self.current_ll)  # / abs(self.current_sample["norm_ll"])
+        feats_hash = str(self.current_feats[move_idx])
+        if feats_hash in self.neighbor_cache:
+            neighbor_tree_optim, neighbor_ll = self.neighbor_cache[feats_hash]
+            self.cache_hits += 1
+        else:
+            move = self.current_moves[move_idx]
+            neighbor_tree = perform_spr_move(self.current_tree, move)
+            neighbor_tree_optim, neighbor_ll = self._evaluate_likelihood(neighbor_tree)
+            self.neighbor_cache[feats_hash] = (neighbor_tree_optim, neighbor_ll)
 
-        self.current_tree = new_tree
-        self.current_ll = new_ll
+        reward = (neighbor_ll - self.current_ll)  # / abs(self.current_sample["norm_ll"])
+
+        self.current_tree, self.current_moves, self.current_feats = self._extract_features(neighbor_tree_optim)
+        self.current_ll = neighbor_ll
         self.step_count += 1
-        done = not self.step_count < self.horizon
+        done = self.step_count >= self.horizon
 
-        return self._extract_features(), reward, done
+        return self.current_feats, reward, done
 
-    def _extract_features(self):
+    def _extract_features(self, tree: Tree):
         """Compute the feature vector for current tree."""
-        preproc = TreePreprocessor(self.current_tree)
+        preproc = TreePreprocessor(tree)
         annotated_tree, possible_moves = preproc.get_possible_spr_moves()
         feats = preproc.extract_all_spr_features(
             possible_moves,
@@ -138,14 +153,13 @@ if __name__ == "__main__":
         raxmlng_path=Path("raxmlng/raxml-ng"),
         horizon=20
     )
-    tree, moves, feats = env.reset()
+    feats = env.reset()
     done = False
     total_reward = 0
 
     while not done:
-        move = random.choice(moves)
-        (tree, moves, feats), reward, done = env.step(tree, move)
+        move_idx = random.randrange(0, len(feats))
+        feats, reward, done = env.step(move_idx)
         total_reward += reward
 
     print(f"Total reward: {total_reward}")
-    print(f"Real scale: {total_reward * abs(env.current_sample['norm_ll'])}")
