@@ -10,6 +10,16 @@ from Bio.Align import MultipleSeqAlignment
 from Bio.Phylo.TreeConstruction import DistanceTreeConstructor, DistanceMatrix
 from joblib import Parallel, delayed
 
+from hyperparameters import (
+    NUM_SAMPLES, SAMPLE_SIZE, NUM_PARS_TREES, NUM_RAND_TREES,
+    NUM_BOOTSTRAP, EVO_MODEL, N_JOBS_BOOTSTRAP
+)
+
+from hyperparameters import (
+    NUM_SAMPLES, SAMPLE_SIZE, NUM_PARS_TREES, NUM_RAND_TREES,
+    NUM_BOOTSTRAP, EVO_MODEL, N_JOBS_BOOTSTRAP
+)
+
 # ---------- Helpers ----------
 
 
@@ -107,9 +117,10 @@ def compute_bootstrap_support(aln: MultipleSeqAlignment, num_bootstrap: int, n_j
 # ---------- Main function ----------
 
 
-def sample_dataset(input_fasta: Path, outdir: Path, num_samples: int, sample_size: int,
-                   num_pars_trees: int, num_rand_trees: int, num_bootstrap: int,
-                   raxmlng_path: Path, evo_model: str):
+def sample_dataset(input_fasta: Path, outdir: Path, num_samples: int = NUM_SAMPLES,
+                   sample_size: int = SAMPLE_SIZE, num_pars_trees: int = NUM_PARS_TREES,
+                   num_rand_trees: int = NUM_RAND_TREES, num_bootstrap: int = NUM_BOOTSTRAP,
+                   raxmlng_path: Path = Path("raxmlng/raxml-ng"), evo_model: str = EVO_MODEL):
     outdir.mkdir(parents=True, exist_ok=True)
 
     seq_records = list(SeqIO.parse(str(input_fasta), "fasta"))
@@ -170,7 +181,7 @@ def sample_dataset(input_fasta: Path, outdir: Path, num_samples: int, sample_siz
 
         # Create bootstrap trees and count splits
         aln = AlignIO.read(str(sample_fasta), "fasta")
-        split_support_upgma, split_support_nj = compute_bootstrap_support(aln, num_bootstrap, n_jobs=-1)
+        split_support_upgma, split_support_nj = compute_bootstrap_support(aln, num_bootstrap, n_jobs=N_JOBS_BOOTSTRAP)
 
         split_support_upgma_pkl = sample_dir / "split_support_upgma.pkl"
         with open(split_support_upgma_pkl, "wb") as f:
@@ -183,11 +194,4 @@ def sample_dataset(input_fasta: Path, outdir: Path, num_samples: int, sample_siz
 
 if __name__ == "__main__":
     sample_dataset(input_fasta=Path("datasets/051_856_p__Basidiomycota_c__Agaricomycetes_o__Russulales.fasta"),
-                   outdir=Path("OUTTEST10"),
-                   num_samples=1,
-                   sample_size=7,
-                   num_pars_trees=10,
-                   num_rand_trees=10,
-                   num_bootstrap=1000,
-                   raxmlng_path=Path("raxmlng/raxml-ng"),
-                   evo_model="GTR+I+G")
+                   outdir=Path("OUTTEST10"))

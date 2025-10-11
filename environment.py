@@ -6,6 +6,7 @@ from ete3 import Tree
 
 from spr_feature_extractor import TreePreprocessor, perform_spr_move
 from sample_datasets import run_cmd
+from hyperparameters import HORIZON
 
 
 class PhyloEnv:
@@ -30,23 +31,38 @@ class PhyloEnv:
                 "split_support_nj": sample_dir / "split_support_nj.pkl"
             }
             # Extract individual newick trees from ranfom trees file
-            with open(sample["rand_trees"]) as f:
+            try:
+                with open(sample["rand_trees"]) as f:
+                    sample["rand_trees_list"] = []
+                    for line in f:
+                        line = line.strip()
+                        if line:  # Only add non-empty lines
+                            sample["rand_trees_list"].append(line)
+            except FileNotFoundError:
                 sample["rand_trees_list"] = []
-                for line in f:
-                    sample["rand_trees_list"].append(line)
+            
             # Extract normalization likelihood from log
-            with open(sample["pars_log"]) as f:
-                for line in f:
-                    if line.startswith("Final LogLikelihood:"):
-                        sample["norm_ll"] = float(line.strip().split()[-1])
-                        break
+            try:
+                with open(sample["pars_log"]) as f:
+                    for line in f:
+                        if line.startswith("Final LogLikelihood:"):
+                            sample["norm_ll"] = float(line.strip().split()[-1])
+                            break
+            except FileNotFoundError:
+                continue
+            
             # Load the split support dicts
-            with open(sample["split_support_upgma"], "rb") as f:
-                sample["split_support_upgma_counter"] = pickle.load(f)
-            with open(sample["split_support_nj"], "rb") as f:
-                sample["split_support_nj_counter"] = pickle.load(f)
+            try:
+                with open(sample["split_support_upgma"], "rb") as f:
+                    sample["split_support_upgma_counter"] = pickle.load(f)
+                with open(sample["split_support_nj"], "rb") as f:
+                    sample["split_support_nj_counter"] = pickle.load(f)
+            except FileNotFoundError:
+                continue
 
-            self.samples.append(sample)
+            # Only add sample if it has starting trees
+            if sample["rand_trees_list"]:
+                self.samples.append(sample)
 
         self.current_sample = None
         self.current_tree = None
@@ -67,6 +83,16 @@ class PhyloEnv:
         self.step_count = 0
         self.cache_hits = 0
         return self.current_feats
+
+    def reset_to_specific_tree(self, sample, tree_nwk):
+        """Reset to a specific sample and starting tree."""
+        self.current_sample = sample
+        start_tree = Tree(tree_nwk, format=1)
+        start_tree_optim, self.current_ll = self._evaluate_likelihood(start_tree)
+        self.current_tree, self.current_moves, self.current_feats = self._extract_features(start_tree_optim)
+        self.step_count = 0
+        self.cache_hits = 0
+        return self.current_tree, self.current_moves, self.current_feats
 
     def step(self, move_idx):
         """
@@ -151,7 +177,7 @@ if __name__ == "__main__":
     env = PhyloEnv(
         samples_parent_dir=Path("OUTTEST"),
         raxmlng_path=Path("raxmlng/raxml-ng"),
-        horizon=20
+        horizon=HORIZON
     )
     feats = env.reset()
     done = False

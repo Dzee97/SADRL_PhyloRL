@@ -5,9 +5,13 @@ from joblib import Parallel, delayed
 from pathlib import Path
 from environment import PhyloEnv
 from dqn_agent import DQNAgent
+from hyperparameters import (
+    CHECKPOINT_EVERY, UPDATE_FREQUENCY, EPISODES, HORIZON, N_AGENTS, N_CORES,
+    DEFAULT_SAMPLES_DIR, DEFAULT_RAXML_PATH, DEFAULT_CHECKPOINTS_DIR
+)
 
-CHECKPOINT_EVERY = 100
-UPDATE_FREQUENCY = 4
+CHECKPOINT_EVERY = CHECKPOINT_EVERY
+UPDATE_FREQUENCY = UPDATE_FREQUENCY
 
 
 def train_agent_process(agent_id, samples_dir, raxml_path, episodes, horizon, save_dir):
@@ -35,7 +39,7 @@ def train_agent_process(agent_id, samples_dir, raxml_path, episodes, horizon, sa
             next_feats, reward, done = env.step(action_idx)
 
             # Store transition with compressed next state
-            agent.replay.push(feat_vec, reward, next_feats, done)
+            agent.replay.push(feat_vec, action_idx, reward, next_feats, done)
 
             # Update less frequently
             step_counter += 1
@@ -65,8 +69,9 @@ def train_agent_process(agent_id, samples_dir, raxml_path, episodes, horizon, sa
     return rewards
 
 
-def run_parallel_training(samples_dir, raxml_path, episodes=2000, horizon=20,
-                          n_agents=5, n_cores=None, save_dir="checkpoints"):
+def run_parallel_training(samples_dir=DEFAULT_SAMPLES_DIR, raxml_path=DEFAULT_RAXML_PATH,
+                          episodes=EPISODES, horizon=HORIZON,
+                          n_agents=N_AGENTS, n_cores=N_CORES, save_dir=DEFAULT_CHECKPOINTS_DIR):
 
     os.makedirs(save_dir, exist_ok=True)
     n_cores = n_cores or min(os.cpu_count(), n_agents)
@@ -96,10 +101,5 @@ def run_parallel_training(samples_dir, raxml_path, episodes=2000, horizon=20,
 if __name__ == "__main__":
     run_parallel_training(
         samples_dir="OUTTEST10",
-        save_dir="OUTTEST10/checkpoints",
-        raxml_path="raxmlng/raxml-ng",
-        episodes=2000,
-        horizon=20,
-        n_agents=5,
-        n_cores=2
+        save_dir="OUTTEST10/checkpoints"
     )

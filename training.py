@@ -3,14 +3,15 @@ import numpy as np
 import torch
 from environment import PhyloEnv
 from dqn_agent import DQNAgent
+from hyperparameters import EPISODES, HORIZON, BATCH_SIZE, DEFAULT_SAMPLES_DIR, DEFAULT_RAXML_PATH
 
 
 def train_dqn(
-    samples_dir="OUTTEST",
-    raxml_path="raxmlng/raxml-ng",
-    episodes=2000,
-    horizon=20,
-    batch_size=128
+    samples_dir=DEFAULT_SAMPLES_DIR,
+    raxml_path=DEFAULT_RAXML_PATH,
+    episodes=EPISODES,
+    horizon=HORIZON,
+    batch_size=BATCH_SIZE
 ):
     env = PhyloEnv(
         samples_parent_dir=Path(samples_dir),
@@ -41,7 +42,7 @@ def train_dqn(
             (next_tree, next_moves, next_feats), reward, done = env.step(annotated_tree, move)
 
             # Store transition
-            agent.replay.push(feat_vec, reward, next_feats, done)
+            agent.replay.push(feat_vec, action_idx, reward, next_feats, done)
             loss = agent.update(batch_size=batch_size)
 
             total_reward += reward
