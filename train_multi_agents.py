@@ -52,7 +52,7 @@ def train_agent_process(agent_id, samples_dir, raxml_path, episodes, horizon, sa
             recent_avg = np.mean(rewards[-10:])
             print(f"[Agent {agent_id}] Ep {ep+1}/{episodes} | "
                   f"Reward: {total_reward:.3f} | Avg10: {recent_avg:.3f} | "
-                  f"Eps: {eps:.3f} | Cache hits: {env.cache_hits}")
+                  f"Eps: {eps:.3f} | Cache hits: {env.cache_hits} | Cache size: {len(env.tree_cache)}")
 
         # Periodic saving
         if (ep + 1) % CHECKPOINT_EVERY == 0:
@@ -95,8 +95,8 @@ def run_parallel_training(samples_dir, raxml_path, episodes=2000, horizon=20,
 
 if __name__ == "__main__":
     run_parallel_training(
-        samples_dir="OUTTEST10",
-        save_dir="OUTTEST10/checkpoints",
+        samples_dir="OUTTEST1010",
+        save_dir="OUTTEST1010/checkpoints",
         raxml_path="raxmlng/raxml-ng",
         episodes=2000,
         horizon=20,

@@ -6,6 +6,7 @@ from ete3 import Tree
 
 from spr_feature_extractor import TreePreprocessor, perform_spr_move
 from sample_datasets import run_cmd
+from tree_hash import unrooted_tree_hash
 
 
 class PhyloEnv:
@@ -38,7 +39,7 @@ class PhyloEnv:
             with open(sample["pars_log"]) as f:
                 for line in f:
                     if line.startswith("Final LogLikelihood:"):
-                        sample["norm_ll"] = float(line.strip().split()[-1])
+                        sample["pars_ll"] = float(line.strip().split()[-1])
                         break
             # Load the split support dicts
             with open(sample["split_support_upgma"], "rb") as f:
@@ -54,18 +55,30 @@ class PhyloEnv:
         self.current_moves = None
         self.current_feats = None
 
-        self.neighbor_cache = {}
+        self.tree_cache = {}
         self.cache_hits = 0
 
-    def reset(self):
+    def reset(self, sample_num: int = None, start_tree_num: int = None):
         """Pick a random sample and random starting tree, prepare RAxML working dir in RAM."""
-        self.current_sample = random.choice(self.samples)
-        start_tree_nwk = random.choice(self.current_sample["rand_trees_list"])
-        start_tree = Tree(start_tree_nwk, format=1)
-        start_tree_optim, self.current_ll = self._evaluate_likelihood(start_tree)
-        self.current_tree, self.current_moves, self.current_feats = self._extract_features(start_tree_optim)
         self.step_count = 0
         self.cache_hits = 0
+
+        sample_num = random.randrange(0, len(self.samples)) if sample_num is None else sample_num
+        self.current_sample = self.samples[sample_num]
+        start_tree_num = random.randrange(
+            0, len(self.current_sample["rand_trees_list"])) if start_tree_num is None else start_tree_num
+        start_tree_nwk = self.current_sample["rand_trees_list"][start_tree_num]
+        start_tree = Tree(start_tree_nwk, format=1)
+
+        tree_hash = unrooted_tree_hash(start_tree)
+        if tree_hash in self.tree_cache:
+            start_tree_optim, self.current_ll = self.tree_cache[tree_hash]
+            self.cache_hits += 1
+        else:
+            start_tree_optim, self.current_ll = self._evaluate_likelihood(start_tree)
+            self.tree_cache[tree_hash] = (start_tree_optim, self.current_ll)
+
+        self.current_tree, self.current_moves, self.current_feats = self._extract_features(start_tree_optim)
         return self.current_feats
 
     def step(self, move_idx):
@@ -73,15 +86,15 @@ class PhyloEnv:
         Perform one SPR move and evaluate reward.
         `move` is a tuple of (prune_edge, regraft_edge) produced by TreePreprocessor.
         """
-        feats_hash = str(self.current_feats[move_idx])
-        if feats_hash in self.neighbor_cache:
-            neighbor_tree_optim, neighbor_ll = self.neighbor_cache[feats_hash]
+        move = self.current_moves[move_idx]
+        neighbor_tree = perform_spr_move(self.current_tree, move)
+        tree_hash = unrooted_tree_hash(neighbor_tree)
+        if tree_hash in self.tree_cache:
+            neighbor_tree_optim, neighbor_ll = self.tree_cache[tree_hash]
             self.cache_hits += 1
         else:
-            move = self.current_moves[move_idx]
-            neighbor_tree = perform_spr_move(self.current_tree, move)
             neighbor_tree_optim, neighbor_ll = self._evaluate_likelihood(neighbor_tree)
-            self.neighbor_cache[feats_hash] = (neighbor_tree_optim, neighbor_ll)
+            self.tree_cache[tree_hash] = (neighbor_tree_optim, neighbor_ll)
 
         reward = (neighbor_ll - self.current_ll)  # / abs(self.current_sample["norm_ll"])
 
