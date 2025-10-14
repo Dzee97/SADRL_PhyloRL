@@ -131,7 +131,7 @@ NOISY_SIGMA_INIT = 0.5
 # =============================================================================
 
 # Toggle for Intrinsic Curiosity Module
-INTRINSIC_CURIOSITY = True
+INTRINSIC_CURIOSITY = False
 
 # Intrinsic reward scaling factor
 INTRINSIC_REWARD_SCALE = 0.1
@@ -171,12 +171,3 @@ DEFAULT_RAXML_PATH = "raxmlng/raxml-ng"
 
 # Default save directory for checkpoints
 DEFAULT_CHECKPOINTS_DIR = "checkpoints"
-
-# Default output directory for evaluation results
-DEFAULT_EVALUATION_OUTPUT_DIR = "evaluation_results"
-
-# Default checkpoints directory for evaluation
-DEFAULT_EVALUATION_CHECKPOINTS_DIR = "OUTTEST10/checkpoints"
-
-# Default samples directory for evaluation
-DEFAULT_EVALUATION_SAMPLES_DIR = "OUTTEST10"
