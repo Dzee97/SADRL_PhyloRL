@@ -2,3 +2,5 @@
 /__pycache__
 /checkpoints
 /OUTTEST*
+/Samples*
+/*png

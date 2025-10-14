@@ -74,7 +74,6 @@ def run_parallel_training(samples_dir, raxml_path, episodes=2000, horizon=20,
     print(f"🚀 Launching {n_agents} agents on {n_cores} cores")
     print(f"   Episodes: {episodes}, Horizon: {horizon}")
     print(f"   Update frequency: {UPDATE_FREQUENCY}")
-    print(f"   Memory optimization: Single next-action storage\n")
 
     results = Parallel(n_jobs=n_cores, backend="loky", verbose=0)(
         delayed(train_agent_process)(agent_id, samples_dir, raxml_path,
