@@ -43,10 +43,12 @@ sample_dataset_partial(outdir=samples1_train10,
 # --- Training of agents ---
 
 samples1_train1_checkpoints = samples1_train1 / "checkpoints"
+samples1_train10_checkpoints = samples1_train10 / "checkpoints"
 
 # training loop params
 checkpoint_freq = 100
 update_freq = 4
+batch_size = 128
 episodes = 2000
 horizon = 20
 n_agents = 5
@@ -61,16 +63,19 @@ epsilon_start = 1.0
 epsilon_end = 0.05
 epsilon_decay = 10_000
 target_update = 1000
-batch_size = 128
 
 run_parallel_training_partial = partial(run_parallel_training,
+                                        # dep paths
                                         raxml_path=raxmlng_path,
+                                        # training loop params
                                         episodes=episodes,
                                         horizon=horizon,
                                         n_agents=n_agents,
                                         n_cores=n_cores,
                                         checkpoint_freq=checkpoint_freq,
                                         update_freq=update_freq,
+                                        batch_size=batch_size,
+                                        # dqn agent params
                                         hidden_dim=hidden_dim,
                                         replay_size=replay_size,
                                         learning_rate=learning_rate,
@@ -78,8 +83,32 @@ run_parallel_training_partial = partial(run_parallel_training,
                                         epsilon_start=epsilon_start,
                                         epsilon_end=epsilon_end,
                                         epsilon_decay=epsilon_decay,
-                                        target_update=target_update,
-                                        batch_size=batch_size)
+                                        target_update=target_update)
 
 run_parallel_training_partial(samples_dir=samples1_train1,
                               checkpoint_dir=samples1_train1_checkpoints)
+run_parallel_training_partial(samples_dir=samples1_train10,
+                              checkpoint_dir=samples1_train10_checkpoints)
+
+# --- Evaluation on agents ---
+
+samples1_train1_evaluate = samples1_train1 / "evaluate"
+samples1_train10_evaluate = samples1_train10 / "evaluate"
+
+evaluate_checkpoints_partial = partial(evaluate_checkpoints,
+                                       hidden_dim=hidden_dim,
+                                       raxmlng_path=raxmlng_path,
+                                       horizon=horizon)
+
+evaluate_checkpoints_partial(samples_dir=samples1_train1,
+                             start_tree_set="train",
+                             checkpoints_dir=samples1_train1_checkpoints,
+                             evaluate_dir=samples1_train1_evaluate)
+evaluate_checkpoints_partial(samples_dir=samples1_train10,
+                             start_tree_set="train",
+                             checkpoints_dir=samples1_train10_checkpoints,
+                             evaluate_dir=samples1_train10_evaluate)
+
+# --- Plottig for evaluation ---
+plot_over_checkpoints(evaluate_dir=samples1_train1_evaluate)
+plot_over_checkpoints(evaluate_dir=samples1_train10_evaluate)

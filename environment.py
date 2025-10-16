@@ -20,6 +20,8 @@ class PhyloEnv:
         self.horizon = horizon
 
         self.samples = []
+        self.num_train_start_trees = []
+        self.num_test_start_trees = []
         for sample_dir in self.samples_parent_dir.glob("sample_*"):
             sample = {
                 "dir": sample_dir,
@@ -34,8 +36,10 @@ class PhyloEnv:
             # Extract individual newick trees from ranfom trees files
             with open(sample["rand_train_trees"]) as f:
                 sample["rand_train_trees_list"] = [line for line in f]
+                self.num_train_start_trees.append(len(sample["rand_train_trees_list"]))
             with open(sample["rand_test_trees"]) as f:
                 sample["rand_test_trees_list"] = [line for line in f]
+                self.num_test_start_trees.append(len(sample["rand_test_trees_list"]))
             # Extract normalization likelihood from log
             with open(sample["pars_log"]) as f:
                 for line in f:

@@ -1,4 +1,5 @@
 import os
+import shutil
 import torch
 import numpy as np
 from joblib import Parallel, delayed
@@ -76,6 +77,15 @@ def run_parallel_training(samples_dir, raxml_path, episodes, horizon, n_agents, 
                           checkpoint_freq, update_freq, hidden_dim, replay_size, learning_rate, gamma,
                           epsilon_start, epsilon_end, epsilon_decay, target_update, batch_size):
 
+    # ---- Check for existing checkpoint directory ----
+    if checkpoint_dir.exists():
+        answer = input(f"Checkpoint directory '{checkpoint_dir}' already exists. Overwrite? [y/N]: ").strip().lower()
+        if answer not in {"y", "yes"}:
+            print("Aborting — existing checkpoint directory preserved.")
+            return
+        print(f"Removing existing directory: {checkpoint_dir}")
+        shutil.rmtree(checkpoint_dir)
+
     os.makedirs(checkpoint_dir, exist_ok=True)
     n_cores = n_cores or min(os.cpu_count(), n_agents)
 
@@ -85,12 +95,16 @@ def run_parallel_training(samples_dir, raxml_path, episodes, horizon, n_agents, 
     results = Parallel(n_jobs=n_cores, backend="loky", verbose=0)(
         delayed(train_agent_process)(agent_id=agent_id,
                                      samples_dir=samples_dir,
+                                     checkpoint_dir=checkpoint_dir,
+                                     # dep paths
                                      raxml_path=raxml_path,
+                                     # training loop params
                                      episodes=episodes,
                                      horizon=horizon,
-                                     checkpoint_dir=checkpoint_dir,
                                      checkpoint_freq=checkpoint_freq,
                                      update_freq=update_freq,
+                                     batch_size=batch_size,
+                                     # dqn agent params
                                      hidden_dim=hidden_dim,
                                      replay_size=replay_size,
                                      learning_rate=learning_rate,
@@ -98,9 +112,7 @@ def run_parallel_training(samples_dir, raxml_path, episodes, horizon, n_agents, 
                                      epsilon_start=epsilon_start,
                                      epsilon_end=epsilon_end,
                                      epsilon_decay=epsilon_decay,
-                                     target_update=target_update,
-                                     batch_size=batch_size
-                                     )
+                                     target_update=target_update)
         for agent_id in range(n_agents)
     )
 

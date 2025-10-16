@@ -1,16 +1,19 @@
 import re
 import torch
+import os
+import shutil
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.ticker import MaxNLocator
 from pathlib import Path
 from environment import PhyloEnv
 from dqn_agent import QNetwork
 
 
 class EvalAgent:
-    def __init__(self, feature_dim, state_dict, device=None):
+    def __init__(self, feature_dim, hidden_dim, state_dict, device=None):
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
-        self.q_net = QNetwork(feature_dim).to(self.device)
+        self.q_net = QNetwork(feature_dim, hidden_dim).to(self.device)
         self.q_net.load_state_dict(state_dict)
 
     def select_best_action(self, feats):
@@ -20,17 +23,21 @@ class EvalAgent:
             return int(torch.argmax(q_vals).item())
 
 
-def plot_over_checkpoints(results: np.ndarray, pars_lls, episode_nums):
+def plot_over_checkpoints(evaluate_dir: Path):
     """
     Plot evaluation results across checkpoints for each sample.
 
     Shows the mean ± 95% CI over agents, with individual agent traces (thin lines),
     and the average step at which the highest LL was reached on the secondary axis.
     """
-    n_agents, n_checkpoints, n_samples, n_start_trees, n_steps = results.shape
+    results = np.load(evaluate_dir / "results.npy")
+    pars_lls = np.load(evaluate_dir / "pars_lls.npy")
+    episode_nums = np.load(evaluate_dir / "episode_nums.npy")
+
+    n_agents, n_samples, n_checkpoints, n_start_trees, n_steps = results.shape
 
     for sample_idx in range(n_samples):
-        sample_results = results[:, :, sample_idx]  # (n_agents, n_checkpoints, n_start_trees, n_steps)
+        sample_results = results[:, sample_idx]  # (n_agents, n_checkpoints, n_start_trees, n_steps)
 
         # Max LL and step index per trajectory
         episode_max = np.max(sample_results, axis=3)       # (n_agents, n_checkpoints, n_start_trees)
@@ -80,12 +87,18 @@ def plot_over_checkpoints(results: np.ndarray, pars_lls, episode_nums):
         color = 'tab:blue'
         ax2.set_ylabel("Step of best LL", color=color)
 
+        # Plot each agent as faint line
+        for a in range(n_agents):
+            ax2.plot(episode_nums, episode_argmax_mean_per_agent[a],
+                     color=color, alpha=0.3, linewidth=1.0, label="_agent_trace" if a > 0 else "Agents")
+
         ax2.plot(episode_nums, episode_argmax_avg, color=color, linewidth=2.0, label="Mean best step")
-        # ax2.fill_between(episode_nums,
-        #                 episode_argmax_avg - episode_argmax_ci95,
-        #                 episode_argmax_avg + episode_argmax_ci95,
-        #                 alpha=0.2, color=color, label="95% CI (step)")
+        ax2.fill_between(episode_nums,
+                         episode_argmax_avg - episode_argmax_ci95,
+                         episode_argmax_avg + episode_argmax_ci95,
+                         alpha=0.2, color=color, label="95% CI (step)")
         ax2.tick_params(axis='y', labelcolor=color)
+        ax2.yaxis.set_major_locator(MaxNLocator(integer=True))
         ax2.legend(loc="lower right", fontsize=9)
 
         # --- Layout ---
@@ -97,19 +110,36 @@ def plot_over_checkpoints(results: np.ndarray, pars_lls, episode_nums):
         )
 
         fig.tight_layout()
-        plt.savefig(f"sample{sample_idx}_LL_over_checkpoints.png", dpi=150)
+        # plt.savefig(f"sample{sample_idx}_LL_over_checkpoints.png", dpi=150)
         plt.show()
 
 
-def evaluate_checkpoints(samples_dir, checkpoints_dir, raxml_path, horizon):
-    samples_dir = Path(samples_dir)
-    checkpoints_dir = Path(checkpoints_dir)
-    env = PhyloEnv(samples_dir, Path(raxml_path), horizon=horizon)
+def evaluate_checkpoints(samples_dir: Path, start_tree_set: str, checkpoints_dir: Path, hidden_dim: int,
+                         evaluate_dir: Path, raxmlng_path: Path, horizon: int):
+    # ---- Check for existing evaluate directory ----
+    if evaluate_dir.exists():
+        answer = input(f"Evaluation directory '{evaluate_dir}' already exists. Overwrite? [y/N]: ").strip().lower()
+        if answer not in {"y", "yes"}:
+            print("Aborting — existing output directory preserved.")
+            return
+        print(f"Removing existing directory: {evaluate_dir}")
+        shutil.rmtree(evaluate_dir)
+
+    os.makedirs(evaluate_dir, exist_ok=True)
+
+    env = PhyloEnv(samples_dir, raxmlng_path, horizon=horizon)
 
     feats = env.reset()
     feature_dim = feats.shape[1]
     num_samples = len(env.samples)
-    num_start_trees = len(env.current_sample["rand_trees_list"])
+
+    if start_tree_set == "train":
+        num_start_trees = env.num_train_start_trees
+    elif start_tree_set == "test":
+        num_start_trees = env.num_test_start_trees
+    else:
+        raise ValueError('start_tree_set must either be "train" or "test"')
+    max_num_start_trees = max(num_start_trees)
 
     checkpoints_files = checkpoints_dir.glob("agent_*_ep*.pt")
     agent_nums = set()
@@ -122,13 +152,14 @@ def evaluate_checkpoints(samples_dir, checkpoints_dir, raxml_path, horizon):
             episode_nums.add(int(match.group(2)))
 
     agent_nums = sorted(agent_nums)
-    episode_nums = sorted(episode_nums)
+    episode_nums = np.array(sorted(episode_nums))
 
     n_agents = len(agent_nums)
     n_checkpoints = len(episode_nums)
 
-    results = np.zeros((n_agents, n_checkpoints, num_samples, num_start_trees, horizon+1))
-    pars_lls = [env.samples[i]["pars_ll"] for i in range(num_samples)]
+    results = np.full((n_agents, num_samples, n_checkpoints, max_num_start_trees, horizon+1), np.nan)
+
+    pars_lls = np.array([env.samples[i]["pars_ll"] for i in range(num_samples)])
 
     for agent_idx in range(n_agents):
         for checkpoint_idx in range(n_checkpoints):
@@ -140,11 +171,12 @@ def evaluate_checkpoints(samples_dir, checkpoints_dir, raxml_path, horizon):
             print(f"Loading agent {agent_num} for episode checkpoint {episode_num}")
             state_dict = torch.load(checkpoint_file)
 
-            agent = EvalAgent(feature_dim, state_dict)
+            agent = EvalAgent(feature_dim, hidden_dim, state_dict)
             for sample_idx in range(num_samples):
                 print(f"Evaluating sample {sample_idx}")
-                for start_tree_idx in range(num_start_trees):
-                    feats = env.reset(sample_num=sample_idx, start_tree_num=start_tree_idx)
+                for start_tree_idx in range(num_start_trees[sample_idx]):
+                    feats = env.reset(sample_num=sample_idx, start_tree_set=start_tree_set,
+                                      start_tree_num=start_tree_idx)
                     ep_lls = [env.current_ll]
                     done = False
 
@@ -154,9 +186,11 @@ def evaluate_checkpoints(samples_dir, checkpoints_dir, raxml_path, horizon):
                         ep_lls.append(env.current_ll)
                         feats = next_feats
 
-                    results[agent_idx, checkpoint_idx, sample_idx, start_tree_idx] = ep_lls
+                    results[agent_idx, sample_idx, checkpoint_idx, start_tree_idx] = ep_lls
 
-    return results, pars_lls, episode_nums
+    np.save(evaluate_dir / "results.npy", results)
+    np.save(evaluate_dir / "pars_lls.npy", pars_lls)
+    np.save(evaluate_dir / "episode_nums.npy", episode_nums)
 
 
 def evaluate_agents(samples_dir, checkpoints_dir, raxml_path, horizon, n_agents=5, plot_dir="plots"):
@@ -246,7 +280,7 @@ if __name__ == "__main__":
     evaluate_agents(
         samples_dir="OUTTEST102",
         checkpoints_dir="OUTTEST1010/checkpoints",
-        raxml_path="raxmlng/raxml-ng",
+        raxmlng_path="raxmlng/raxml-ng",
         horizon=20,
         n_agents=5,
         plot_dir="OUTTEST102/eval_plots1010"
