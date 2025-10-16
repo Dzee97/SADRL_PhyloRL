@@ -1,6 +1,7 @@
 from sample_datasets import sample_dataset
 from train_multi_agents import run_parallel_training
-from evaluation import evaluate_agents, evaluate_checkpoints, plot_over_checkpoints
+from rainbow_train_multi_agents import rainbow_run_parallel_training
+from evaluation import evaluate_checkpoints, plot_over_checkpoints
 from pathlib import Path
 from functools import partial
 
@@ -8,7 +9,7 @@ from functools import partial
 
 output_dir = Path("output")
 samples1_train1 = output_dir / "Samples1Train1"
-samples1_train10 = output_dir / "Samples1Train10"
+samples1_train10_test10 = output_dir / "Samples1Train10Test10"
 
 deps_dir = Path("dependencies")
 raxmlng_path = deps_dir / "raxmlng" / "raxml-ng"
@@ -36,19 +37,20 @@ sample_dataset_partial(outdir=samples1_train1,
                        num_samples=1,
                        num_rand_train_trees=1,
                        num_rand_test_trees=0)
-sample_dataset_partial(outdir=samples1_train10,
-                       num_samples=1,
-                       num_rand_train_trees=10,
-                       num_rand_test_trees=0)
+# sample_dataset_partial(outdir=samples1_train10_test10,
+#                       num_samples=1,
+#                       num_rand_train_trees=10,
+#                       num_rand_test_trees=10)
 
 # --- Training of agents ---
 
 samples1_train1_checkpoints = samples1_train1 / "checkpoints"
-samples1_train10_checkpoints = samples1_train10 / "checkpoints"
+rainbow_samples1_train1_checkpoints = samples1_train1 / "checkpoints_rainbow"
+samples1_train10_test10_checkpoints = samples1_train10_test10 / "checkpoints"
 
 # training loop params
 checkpoint_freq = 100
-update_freq = 4
+update_freq = 1
 batch_size = 128
 episodes = 2000
 horizon = 20
@@ -63,11 +65,17 @@ gamma = 0.9
 epsilon_start = 1.0
 epsilon_end = 0.05
 epsilon_decay = 10_000
-target_update = 1000
+tau = 0.005
+
+# rainbow agent params
+sigma_init = 0.5
+alpha = 0.6
+beta_start = 0.4
+
 
 run_parallel_training_partial = partial(run_parallel_training,
                                         # dep paths
-                                        raxml_path=raxmlng_path,
+                                        raxmlng_path=raxmlng_path,
                                         # training loop params
                                         episodes=episodes,
                                         horizon=horizon,
@@ -84,18 +92,43 @@ run_parallel_training_partial = partial(run_parallel_training,
                                         epsilon_start=epsilon_start,
                                         epsilon_end=epsilon_end,
                                         epsilon_decay=epsilon_decay,
-                                        target_update=target_update)
+                                        tau=tau)
+
+rainbow_run_parallel_training_partial = partial(rainbow_run_parallel_training,
+                                                # dep paths
+                                                raxmlng_path=raxmlng_path,
+                                                # training loop params
+                                                episodes=episodes,
+                                                horizon=horizon,
+                                                n_agents=n_agents,
+                                                n_cores=n_cores,
+                                                checkpoint_freq=checkpoint_freq,
+                                                update_freq=update_freq,
+                                                batch_size=batch_size,
+                                                # rainbow dqn agent params
+                                                hidden_dim=hidden_dim,
+                                                replay_size=replay_size,
+                                                learning_rate=learning_rate,
+                                                sigma_init=sigma_init,
+                                                gamma=gamma,
+                                                alpha=alpha,
+                                                beta_start=beta_start,
+                                                tau=tau)
 
 print("--- Training of agents ---")
 run_parallel_training_partial(samples_dir=samples1_train1,
                               checkpoint_dir=samples1_train1_checkpoints)
-run_parallel_training_partial(samples_dir=samples1_train10,
-                              checkpoint_dir=samples1_train10_checkpoints)
+rainbow_run_parallel_training_partial(samples_dir=samples1_train1,
+                                      checkpoint_dir=rainbow_samples1_train1_checkpoints)
+# run_parallel_training_partial(samples_dir=samples1_train10_test10,
+#                              checkpoint_dir=samples1_train10_test10_checkpoints)
 
 # --- Evaluation of agents ---
 
 samples1_train1_evaluate = samples1_train1 / "evaluate"
-samples1_train10_evaluate = samples1_train10 / "evaluate"
+rainbow_samples1_train1_evaluate = samples1_train1 / "evaluate_rainbow"
+samples1_train10_test10_evaluate_train = samples1_train10_test10 / "evaluate_train"
+samples1_train10_test10_evaluate_test = samples1_train10_test10 / "evaluate_test"
 
 evaluate_checkpoints_partial = partial(evaluate_checkpoints,
                                        hidden_dim=hidden_dim,
@@ -107,12 +140,22 @@ evaluate_checkpoints_partial(samples_dir=samples1_train1,
                              start_tree_set="train",
                              checkpoints_dir=samples1_train1_checkpoints,
                              evaluate_dir=samples1_train1_evaluate)
-evaluate_checkpoints_partial(samples_dir=samples1_train10,
+evaluate_checkpoints_partial(samples_dir=samples1_train1,
                              start_tree_set="train",
-                             checkpoints_dir=samples1_train10_checkpoints,
-                             evaluate_dir=samples1_train10_evaluate)
+                             checkpoints_dir=rainbow_samples1_train1_checkpoints,
+                             evaluate_dir=rainbow_samples1_train1_evaluate)
+# evaluate_checkpoints_partial(samples_dir=samples1_train10_test10,
+#                             start_tree_set="train",
+#                             checkpoints_dir=samples1_train10_test10_checkpoints,
+#                             evaluate_dir=samples1_train10_test10_evaluate_train)
+# evaluate_checkpoints_partial(samples_dir=samples1_train10_test10,
+#                             start_tree_set="test",
+#                             checkpoints_dir=samples1_train10_test10_checkpoints,
+#                             evaluate_dir=samples1_train10_test10_evaluate_test)
 
 # --- Plottig for evaluation results ---
 print("--- Plottig of evaluation results ---")
 plot_over_checkpoints(evaluate_dir=samples1_train1_evaluate)
-plot_over_checkpoints(evaluate_dir=samples1_train10_evaluate)
+plot_over_checkpoints(evaluate_dir=rainbow_samples1_train1_evaluate)
+# plot_over_checkpoints(evaluate_dir=samples1_train10_test10_evaluate_train)
+# plot_over_checkpoints(evaluate_dir=samples1_train10_test10_evaluate_test)

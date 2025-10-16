@@ -180,16 +180,22 @@ def sample_dataset(input_fasta: Path, outdir: Path, num_samples: int, sample_siz
                 out_file.unlink()
 
         # Step 5: RAxML-NG random starting trees for training and testing
-        for prefix_rand, num_rand_trees in [
-                ("raxml_rand_train", num_rand_train_trees), ("raxml_rand_test", num_rand_test_trees)]:
-            cmd_rand = [
-                str(raxmlng_path), "--start", "--msa", str(sample_aln), "--model", evo_model,
-                "--prefix", str(sample_dir / prefix_rand), "--tree", f"rand{{{num_rand_trees}}}"
-            ]
-            run_cmd(cmd_rand, quiet=True)
-            for out_file in sample_dir.glob(f"{prefix_rand}*"):
-                if out_file.suffix != ".startTree":
-                    out_file.unlink()
+        prefix_rand = "raxml_rand_train"
+        num_rand_trees = num_rand_train_trees + num_rand_test_trees
+        cmd_rand = [
+            str(raxmlng_path), "--start", "--msa", str(sample_aln), "--model", evo_model,
+            "--prefix", str(sample_dir / prefix_rand), "--tree", f"rand{{{num_rand_trees}}}"
+        ]
+        run_cmd(cmd_rand, quiet=True)
+        for out_file in sample_dir.glob(f"{prefix_rand}*"):
+            if out_file.suffix != ".startTree":
+                out_file.unlink()
+            else:
+                # split into train and test random starting trees
+                lines = out_file.read_text().strip().split('\n')
+                out_file.write_text('\n'.join(lines[:num_rand_train_trees]))
+                test_out_file = Path(str(out_file).replace('train', 'test'))
+                test_out_file.write_text('\n'.join(lines[num_rand_train_trees:]))
 
         # Step 6: Bootstrap split support
         print("Computing bootstrap supports...")

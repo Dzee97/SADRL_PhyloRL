@@ -5,12 +5,12 @@ import numpy as np
 from joblib import Parallel, delayed
 from pathlib import Path
 from environment import PhyloEnv
-from dqn_agent import DQNAgent
+from rainbow_dqn_agent import RainbowLiteDQNAgent
 
 
 def train_agent_process(agent_id, samples_dir, raxmlng_path, episodes, horizon, checkpoint_dir,
                         checkpoint_freq, update_freq, hidden_dim, replay_size, learning_rate,
-                        gamma, epsilon_start, epsilon_end, epsilon_decay, tau, batch_size):
+                        gamma, sigma_init, alpha, beta_start, tau, batch_size):
     torch.set_num_threads(1)
 
     # Create environment for this process
@@ -18,19 +18,19 @@ def train_agent_process(agent_id, samples_dir, raxmlng_path, episodes, horizon, 
     feats = env.reset()
     feature_dim = feats.shape[1]
 
-    # Initialize DQN agent
-    agent = DQNAgent(feature_dim=feature_dim,
-                     hidden_dim=hidden_dim,
-                     learning_rate=learning_rate,
-                     gamma=gamma,
-                     epsilon_start=epsilon_start,
-                     epsilon_end=epsilon_end,
-                     epsilon_decay=epsilon_decay,
-                     tau=tau,
-                     replay_size=replay_size)
+    # Initialize Rainbow DQN agent
+    agent = RainbowLiteDQNAgent(feature_dim=feature_dim,
+                                hidden_dim=hidden_dim,
+                                learning_rate=learning_rate,
+                                gamma=gamma,
+                                sigma_init=sigma_init,
+                                alpha=alpha,
+                                tau=tau,
+                                replay_size=replay_size)
 
     rewards = []
     step_counter = 0
+    beta_frames = episodes * horizon
 
     for ep in range(episodes):
         feats = env.reset()
@@ -38,7 +38,7 @@ def train_agent_process(agent_id, samples_dir, raxmlng_path, episodes, horizon, 
         done = False
 
         while not done:
-            action_idx, eps = agent.select_action(feats)
+            action_idx = agent.select_action(feats)
             feat_vec = feats[action_idx]
             next_feats, reward, done = env.step(action_idx)
 
@@ -47,8 +47,9 @@ def train_agent_process(agent_id, samples_dir, raxmlng_path, episodes, horizon, 
 
             # Update less frequently
             step_counter += 1
+            beta = min(1.0, beta_start + step_counter * (1.0 - beta_start) / beta_frames)
             if step_counter % update_freq == 0:
-                agent.update(batch_size)
+                agent.update(batch_size, beta)
 
             total_reward += reward
             feats = next_feats
@@ -60,7 +61,8 @@ def train_agent_process(agent_id, samples_dir, raxmlng_path, episodes, horizon, 
             recent_avg = np.mean(rewards[-10:])
             print(f"[Agent {agent_id}] Ep {ep+1}/{episodes} | "
                   f"Reward: {total_reward:.3f} | Avg10: {recent_avg:.3f} | "
-                  f"Eps: {eps:.3f} | Cache hits: {env.cache_hits} | Cache size: {len(env.tree_cache)}")
+                  f"Avg Sigma: {agent.get_avg_sigma():.3f} | Cache hits: {env.cache_hits} | "
+                  f"Cache size: {len(env.tree_cache)}")
 
         # Periodic saving
         if (ep + 1) % checkpoint_freq == 0:
@@ -73,9 +75,9 @@ def train_agent_process(agent_id, samples_dir, raxmlng_path, episodes, horizon, 
     return rewards
 
 
-def run_parallel_training(samples_dir, raxmlng_path, episodes, horizon, n_agents, n_cores, checkpoint_dir,
-                          checkpoint_freq, update_freq, hidden_dim, replay_size, learning_rate, gamma,
-                          epsilon_start, epsilon_end, epsilon_decay, tau, batch_size):
+def rainbow_run_parallel_training(samples_dir, raxmlng_path, episodes, horizon, n_agents, n_cores, checkpoint_dir,
+                                  checkpoint_freq, update_freq, hidden_dim, replay_size, learning_rate, gamma,
+                                  sigma_init, alpha, beta_start, tau, batch_size):
 
     # ---- Check for existing checkpoint directory ----
     if checkpoint_dir.exists():
@@ -104,14 +106,14 @@ def run_parallel_training(samples_dir, raxmlng_path, episodes, horizon, n_agents
                                      checkpoint_freq=checkpoint_freq,
                                      update_freq=update_freq,
                                      batch_size=batch_size,
-                                     # dqn agent params
+                                     # rainbow dqn agent params
                                      hidden_dim=hidden_dim,
                                      replay_size=replay_size,
                                      learning_rate=learning_rate,
+                                     sigma_init=sigma_init,
                                      gamma=gamma,
-                                     epsilon_start=epsilon_start,
-                                     epsilon_end=epsilon_end,
-                                     epsilon_decay=epsilon_decay,
+                                     alpha=alpha,
+                                     beta_start=beta_start,
                                      tau=tau)
         for agent_id in range(n_agents)
     )

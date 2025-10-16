@@ -51,13 +51,13 @@ class ReplayBuffer:
 
 class DQNAgent:
     def __init__(self, feature_dim, hidden_dim, learning_rate, gamma, epsilon_start, epsilon_end, epsilon_decay,
-                 target_update, replay_size, device=None):
+                 tau, replay_size, device=None):
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
         self.gamma = gamma
         self.epsilon_start = epsilon_start
         self.epsilon_end = epsilon_end
         self.epsilon_decay = epsilon_decay
-        self.target_update = target_update
+        self.tau = tau
         self.step_count = 0
 
         self.q_net = QNetwork(feature_dim, hidden_dim).to(self.device)
@@ -110,8 +110,9 @@ class DQNAgent:
         loss.backward()
         self.optimizer.step()
 
-        if self.step_count % self.target_update == 0:
-            self.target_net.load_state_dict(self.q_net.state_dict())
+        # --- soft update target network ---
+        for target_param, param in zip(self.target_net.parameters(), self.q_net.parameters()):
+            target_param.data.copy_(self.tau * param.data + (1.0 - self.tau) * target_param.data)
 
         return loss.item()
 
