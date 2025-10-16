@@ -31,6 +31,7 @@ sample_dataset_partial = partial(sample_dataset,
                                  mafft_path=mafft_path,
                                  evo_model=evo_model)
 
+print("--- Sampling of datasets ---")
 sample_dataset_partial(outdir=samples1_train1,
                        num_samples=1,
                        num_rand_train_trees=1,
@@ -85,12 +86,13 @@ run_parallel_training_partial = partial(run_parallel_training,
                                         epsilon_decay=epsilon_decay,
                                         target_update=target_update)
 
+print("--- Training of agents ---")
 run_parallel_training_partial(samples_dir=samples1_train1,
                               checkpoint_dir=samples1_train1_checkpoints)
 run_parallel_training_partial(samples_dir=samples1_train10,
                               checkpoint_dir=samples1_train10_checkpoints)
 
-# --- Evaluation on agents ---
+# --- Evaluation of agents ---
 
 samples1_train1_evaluate = samples1_train1 / "evaluate"
 samples1_train10_evaluate = samples1_train10 / "evaluate"
@@ -100,6 +102,7 @@ evaluate_checkpoints_partial = partial(evaluate_checkpoints,
                                        raxmlng_path=raxmlng_path,
                                        horizon=horizon)
 
+print("--- Evaluation of agents ---")
 evaluate_checkpoints_partial(samples_dir=samples1_train1,
                              start_tree_set="train",
                              checkpoints_dir=samples1_train1_checkpoints,
@@ -109,6 +112,7 @@ evaluate_checkpoints_partial(samples_dir=samples1_train10,
                              checkpoints_dir=samples1_train10_checkpoints,
                              evaluate_dir=samples1_train10_evaluate)
 
-# --- Plottig for evaluation ---
+# --- Plottig for evaluation results ---
+print("--- Plottig of evaluation results ---")
 plot_over_checkpoints(evaluate_dir=samples1_train1_evaluate)
 plot_over_checkpoints(evaluate_dir=samples1_train10_evaluate)
