@@ -61,7 +61,7 @@ def train_agent_process(agent_id, samples_dir, raxmlng_path, episodes, horizon, 
             recent_avg = np.mean(rewards[-10:])
             print(f"[Agent {agent_id}] Ep {ep+1}/{episodes} | "
                   f"Reward: {total_reward:.3f} | Avg10: {recent_avg:.3f} | "
-                  f"Avg Sigma: {agent.get_avg_sigma():.3f} | Cache hits: {env.cache_hits} | "
+                  f"Beta: {beta:.3f} | Avg Sigma: {agent.get_avg_sigma():.3f} | Cache hits: {env.cache_hits} | "
                   f"Cache size: {len(env.tree_cache)}")
 
         # Periodic saving
