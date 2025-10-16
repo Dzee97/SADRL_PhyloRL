@@ -6,11 +6,10 @@ from pathlib import Path
 from environment import PhyloEnv
 from dqn_agent import DQNAgent
 
-CHECKPOINT_EVERY = 100
-UPDATE_FREQUENCY = 4
 
-
-def train_agent_process(agent_id, samples_dir, raxml_path, episodes, horizon, save_dir):
+def train_agent_process(agent_id, samples_dir, raxml_path, episodes, horizon, checkpoint_dir,
+                        checkpoint_freq, update_freq, hidden_dim, replay_size, learning_rate,
+                        gamma, epsilon_start, epsilon_end, epsilon_decay, target_update, batch_size):
     torch.set_num_threads(1)
 
     # Create environment for this process
@@ -19,7 +18,15 @@ def train_agent_process(agent_id, samples_dir, raxml_path, episodes, horizon, sa
     feature_dim = feats.shape[1]
 
     # Initialize DQN agent
-    agent = DQNAgent(feature_dim)
+    agent = DQNAgent(feature_dim=feature_dim,
+                     hidden_dim=hidden_dim,
+                     learning_rate=learning_rate,
+                     gamma=gamma,
+                     epsilon_start=epsilon_start,
+                     epsilon_end=epsilon_end,
+                     epsilon_decay=epsilon_decay,
+                     target_update=target_update,
+                     replay_size=replay_size)
 
     rewards = []
     step_counter = 0
@@ -39,8 +46,8 @@ def train_agent_process(agent_id, samples_dir, raxml_path, episodes, horizon, sa
 
             # Update less frequently
             step_counter += 1
-            if step_counter % UPDATE_FREQUENCY == 0:
-                agent.update()
+            if step_counter % update_freq == 0:
+                agent.update(batch_size)
 
             total_reward += reward
             feats = next_feats
@@ -55,29 +62,45 @@ def train_agent_process(agent_id, samples_dir, raxml_path, episodes, horizon, sa
                   f"Eps: {eps:.3f} | Cache hits: {env.cache_hits} | Cache size: {len(env.tree_cache)}")
 
         # Periodic saving
-        if (ep + 1) % CHECKPOINT_EVERY == 0:
-            ckpt_path = Path(save_dir) / f"agent_{agent_id}_ep{ep+1}.pt"
+        if (ep + 1) % checkpoint_freq == 0:
+            ckpt_path = Path(checkpoint_dir) / f"agent_{agent_id}_ep{ep+1}.pt"
             agent.save(ckpt_path)
 
     # Save final model
-    agent.save(Path(save_dir) / f"agent_{agent_id}_final.pt")
+    agent.save(Path(checkpoint_dir) / f"agent_{agent_id}_final.pt")
     print(f"[Agent {agent_id}] Finished. Avg reward: {np.mean(rewards):.3f}")
     return rewards
 
 
-def run_parallel_training(samples_dir, raxml_path, episodes=2000, horizon=20,
-                          n_agents=5, n_cores=None, save_dir="checkpoints"):
+def run_parallel_training(samples_dir, raxml_path, episodes, horizon, n_agents, n_cores, checkpoint_dir,
+                          checkpoint_freq, update_freq, hidden_dim, replay_size, learning_rate, gamma,
+                          epsilon_start, epsilon_end, epsilon_decay, target_update, batch_size):
 
-    os.makedirs(save_dir, exist_ok=True)
+    os.makedirs(checkpoint_dir, exist_ok=True)
     n_cores = n_cores or min(os.cpu_count(), n_agents)
 
     print(f"🚀 Launching {n_agents} agents on {n_cores} cores")
     print(f"   Episodes: {episodes}, Horizon: {horizon}")
-    print(f"   Update frequency: {UPDATE_FREQUENCY}")
 
     results = Parallel(n_jobs=n_cores, backend="loky", verbose=0)(
-        delayed(train_agent_process)(agent_id, samples_dir, raxml_path,
-                                     episodes, horizon, save_dir)
+        delayed(train_agent_process)(agent_id=agent_id,
+                                     samples_dir=samples_dir,
+                                     raxml_path=raxml_path,
+                                     episodes=episodes,
+                                     horizon=horizon,
+                                     checkpoint_dir=checkpoint_dir,
+                                     checkpoint_freq=checkpoint_freq,
+                                     update_freq=update_freq,
+                                     hidden_dim=hidden_dim,
+                                     replay_size=replay_size,
+                                     learning_rate=learning_rate,
+                                     gamma=gamma,
+                                     epsilon_start=epsilon_start,
+                                     epsilon_end=epsilon_end,
+                                     epsilon_decay=epsilon_decay,
+                                     target_update=target_update,
+                                     batch_size=batch_size
+                                     )
         for agent_id in range(n_agents)
     )
 

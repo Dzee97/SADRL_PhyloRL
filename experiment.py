@@ -2,75 +2,84 @@ from sample_datasets import sample_dataset
 from train_multi_agents import run_parallel_training
 from evaluation import evaluate_agents, evaluate_checkpoints, plot_over_checkpoints
 from pathlib import Path
+from functools import partial
 
-samples1_trees1 = Path("Samples1Trees1")
-samples1_trees10_1 = Path("Samples1Trees10Rep1")
-samples1_trees10_2 = Path("Samples1Trees10Rep2")
-samples10_trees10 = Path("Samples10Trees10")
+# --- Sampling of datasets ---
 
-samples_dirs = [samples1_trees1, samples1_trees10_1, samples1_trees10_2, samples10_trees10]
+output_dir = Path("output")
+samples1_train1 = output_dir / "Samples1Train1"
+samples1_train10 = output_dir / "Samples1Train10"
 
-raxmlng_path = Path("raxmlng/raxml-ng")
+deps_dir = Path("dependencies")
+raxmlng_path = deps_dir / "raxmlng" / "raxml-ng"
+mafft_path = deps_dir / "mafft-linux64" / "mafft.bat"
 
+datasets_dir = Path("datasets")
+input_fasta = datasets_dir / "051_856_p__Basidiomycota_c__Agaricomycetes_o__Russulales.fasta"
 
-def create_datasets():
-    input_fasta = Path("datasets/051_856_p__Basidiomycota_c__Agaricomycetes_o__Russulales.fasta")
-    sample_size = 7
-    num_pars_trees = 10
-    num_bootstrap = 1000
-    evo_model = "GTR+I+G"
+sample_size = 7
+num_pars_trees = 10
+num_bootstrap = 10_000
+evo_model = "GTR+I+G"
 
-    sample_dataset(input_fasta=input_fasta, outdir=samples1_trees1, num_samples=1, sample_size=sample_size,
-                   num_pars_trees=num_pars_trees, num_rand_trees=1, num_bootstrap=num_bootstrap,
-                   raxmlng_path=raxmlng_path, evo_model=evo_model)
+sample_dataset_partial = partial(sample_dataset,
+                                 input_fasta=input_fasta,
+                                 sample_size=sample_size,
+                                 num_pars_trees=num_pars_trees,
+                                 num_bootstrap=num_bootstrap,
+                                 raxmlng_path=raxmlng_path,
+                                 mafft_path=mafft_path,
+                                 evo_model=evo_model)
 
-    sample_dataset(input_fasta=input_fasta, outdir=samples1_trees10_1, num_samples=1, sample_size=sample_size,
-                   num_pars_trees=num_pars_trees, num_rand_trees=10, num_bootstrap=num_bootstrap,
-                   raxmlng_path=raxmlng_path, evo_model=evo_model)
+sample_dataset_partial(outdir=samples1_train1,
+                       num_samples=1,
+                       num_rand_train_trees=1,
+                       num_rand_test_trees=0)
+sample_dataset_partial(outdir=samples1_train10,
+                       num_samples=1,
+                       num_rand_train_trees=10,
+                       num_rand_test_trees=0)
 
-    sample_dataset(input_fasta=input_fasta, outdir=samples1_trees10_2, num_samples=1, sample_size=sample_size,
-                   num_pars_trees=num_pars_trees, num_rand_trees=10, num_bootstrap=num_bootstrap,
-                   raxmlng_path=raxmlng_path, evo_model=evo_model)
+# --- Training of agents ---
 
-    sample_dataset(input_fasta=input_fasta, outdir=samples10_trees10, num_samples=10, sample_size=sample_size,
-                   num_pars_trees=num_pars_trees, num_rand_trees=10, num_bootstrap=num_bootstrap,
-                   raxmlng_path=raxmlng_path, evo_model=evo_model)
+samples1_train1_checkpoints = samples1_train1 / "checkpoints"
 
-    return [samples1_trees1, samples1_trees10_1, samples1_trees10_2, samples10_trees10]
+# training loop params
+checkpoint_freq = 100
+update_freq = 4
+episodes = 2000
+horizon = 20
+n_agents = 5
+n_cores = 2
 
+# dqn agent params
+hidden_dim = 256
+replay_size = 10_000
+learning_rate = 1e-5
+gamma = 0.9
+epsilon_start = 1.0
+epsilon_end = 0.05
+epsilon_decay = 10_000
+target_update = 1000
+batch_size = 128
 
-if __name__ == "__main__":
-    # create_datasets()
+run_parallel_training_partial = partial(run_parallel_training,
+                                        raxml_path=raxmlng_path,
+                                        episodes=episodes,
+                                        horizon=horizon,
+                                        n_agents=n_agents,
+                                        n_cores=n_cores,
+                                        checkpoint_freq=checkpoint_freq,
+                                        update_freq=update_freq,
+                                        hidden_dim=hidden_dim,
+                                        replay_size=replay_size,
+                                        learning_rate=learning_rate,
+                                        gamma=gamma,
+                                        epsilon_start=epsilon_start,
+                                        epsilon_end=epsilon_end,
+                                        epsilon_decay=epsilon_decay,
+                                        target_update=target_update,
+                                        batch_size=batch_size)
 
-    # for samples_dir in samples_dirs:
-    #    print(f"Training on dataset {samples_dir}")
-    #    run_parallel_training(
-    #        samples_dir=samples_dir,
-    #        save_dir=samples_dir / "checkpoints",
-    #        raxml_path=raxmlng_path,
-    #        episodes=2000,
-    #        horizon=20,
-    #        n_agents=5,
-    #        n_cores=3
-    #    )
-
-    # for samples_data_dir in samples_dirs:
-    #    for samples_model_dir in samples_dirs:
-    #        print(f"Evaluating on dataset {samples_data_dir}, using agents trained on {samples_model_dir}")
-    #        evaluate_agents(
-    #            samples_dir=samples_data_dir,
-    #            checkpoints_dir=samples_model_dir / "checkpoints",
-    #            raxml_path=raxmlng_path,
-    #            horizon=20,
-    #            n_agents=5,
-    #            plot_dir=samples_data_dir / "eval_plots" / samples_model_dir
-    #        )
-
-    results, pars_lls, episode_nums = evaluate_checkpoints(
-        samples_dir=samples10_trees10,
-        checkpoints_dir=samples10_trees10 / "checkpoints",
-        raxml_path=raxmlng_path,
-        horizon=20
-    )
-
-    plot_over_checkpoints(results, pars_lls, episode_nums)
+run_parallel_training_partial(samples_dir=samples1_train1,
+                              checkpoint_dir=samples1_train1_checkpoints)

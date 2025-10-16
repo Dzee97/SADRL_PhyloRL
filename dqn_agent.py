@@ -12,7 +12,7 @@ import torch.nn.functional as func
 
 
 class QNetwork(nn.Module):
-    def __init__(self, input_dim, hidden_dim=256):
+    def __init__(self, input_dim, hidden_dim):
         super().__init__()
         self.net = nn.Sequential(
             nn.Linear(input_dim, hidden_dim),
@@ -31,7 +31,7 @@ class QNetwork(nn.Module):
 
 
 class ReplayBuffer:
-    def __init__(self, capacity=10_000):
+    def __init__(self, capacity):
         self.buffer = deque(maxlen=capacity)
 
     def push(self, feat, reward, next_feats, done):
@@ -50,17 +50,8 @@ class ReplayBuffer:
 
 
 class DQNAgent:
-    def __init__(
-            self,
-            feature_dim,
-            lr=1e-4,
-            gamma=0.9,
-            epsilon_start=1.0,
-            epsilon_end=0.05,
-            epsilon_decay=10_000,
-            target_update=1000,
-            device=None
-    ):
+    def __init__(self, feature_dim, hidden_dim, learning_rate, gamma, epsilon_start, epsilon_end, epsilon_decay,
+                 target_update, replay_size, device=None):
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
         self.gamma = gamma
         self.epsilon_start = epsilon_start
@@ -69,12 +60,12 @@ class DQNAgent:
         self.target_update = target_update
         self.step_count = 0
 
-        self.q_net = QNetwork(feature_dim).to(self.device)
-        self.target_net = QNetwork(feature_dim).to(self.device)
+        self.q_net = QNetwork(feature_dim, hidden_dim).to(self.device)
+        self.target_net = QNetwork(feature_dim, hidden_dim).to(self.device)
         self.target_net.load_state_dict(self.q_net.state_dict())
 
-        self.optimizer = optim.Adam(self.q_net.parameters(), lr=lr)
-        self.replay = ReplayBuffer()
+        self.optimizer = optim.Adam(self.q_net.parameters(), lr=learning_rate)
+        self.replay = ReplayBuffer(replay_size)
 
     def select_action(self, feats):
         eps = self.epsilon_end + (self.epsilon_start - self.epsilon_end) * \
@@ -89,7 +80,7 @@ class DQNAgent:
                 q_vals = self.q_net(x)
                 return int(torch.argmax(q_vals).item()), eps
 
-    def update(self, batch_size=128):
+    def update(self, batch_size):
         if len(self.replay) < batch_size:
             return None
 

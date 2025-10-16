@@ -23,18 +23,19 @@ class PhyloEnv:
         for sample_dir in self.samples_parent_dir.glob("sample_*"):
             sample = {
                 "dir": sample_dir,
-                "msa": sample_dir / "sample.fasta",
-                "rand_trees": sample_dir / "raxml_rand.raxml.startTree",
+                "msa": sample_dir / "sample_aln.fasta",
+                "rand_train_trees": sample_dir / "raxml_rand_train.raxml.startTree",
+                "rand_test_trees": sample_dir / "raxml_rand_test.raxml.startTree",
                 "pars_model": sample_dir / "raxml_eval_pars.raxml.bestModel",
                 "pars_log": sample_dir / "raxml_eval_pars.raxml.log",
                 "split_support_upgma": sample_dir / "split_support_upgma.pkl",
                 "split_support_nj": sample_dir / "split_support_nj.pkl"
             }
-            # Extract individual newick trees from ranfom trees file
-            with open(sample["rand_trees"]) as f:
-                sample["rand_trees_list"] = []
-                for line in f:
-                    sample["rand_trees_list"].append(line)
+            # Extract individual newick trees from ranfom trees files
+            with open(sample["rand_train_trees"]) as f:
+                sample["rand_train_trees_list"] = [line for line in f]
+            with open(sample["rand_test_trees"]) as f:
+                sample["rand_test_trees_list"] = [line for line in f]
             # Extract normalization likelihood from log
             with open(sample["pars_log"]) as f:
                 for line in f:
@@ -58,16 +59,23 @@ class PhyloEnv:
         self.tree_cache = {}
         self.cache_hits = 0
 
-    def reset(self, sample_num: int = None, start_tree_num: int = None):
+    def reset(self, sample_num: int = None, start_tree_set: str = "train", start_tree_num: int = None):
         """Pick a random sample and random starting tree, prepare RAxML working dir in RAM."""
         self.step_count = 0
         self.cache_hits = 0
 
         sample_num = random.randrange(0, len(self.samples)) if sample_num is None else sample_num
         self.current_sample = self.samples[sample_num]
+
+        if start_tree_set == "train":
+            rand_tree_list = self.current_sample["rand_train_trees_list"]
+        elif start_tree_set == "test":
+            rand_tree_list = self.current_sample["rand_test_trees_list"]
+        else:
+            raise ValueError('start_tree_set must either be "train" or "test"')
         start_tree_num = random.randrange(
-            0, len(self.current_sample["rand_trees_list"])) if start_tree_num is None else start_tree_num
-        start_tree_nwk = self.current_sample["rand_trees_list"][start_tree_num]
+            0, len(rand_tree_list)) if start_tree_num is None else start_tree_num
+        start_tree_nwk = rand_tree_list[start_tree_num]
         start_tree = Tree(start_tree_nwk, format=1)
 
         tree_hash = unrooted_tree_hash(start_tree)

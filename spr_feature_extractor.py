@@ -370,9 +370,9 @@ if __name__ == "__main__":
     trees = {"Int0": t_Int0, "Int1": t_Int1, "Int2": t_Int2, "Int3": t_Int3, "Int4": t_Int4}
 
     # Validation features
-    df = pd.read_csv("spr_test.csv")
+    df = pd.read_csv("testing/spr_test.csv")
 
-    df_support = pd.read_csv("spr_test_support.csv")
+    df_support = pd.read_csv("testing/spr_test_support.csv")
     split_support_nj,  split_support_upgma = {}, {}
     for i, row in df_support.iterrows():
         split = frozenset(row["split"].split(','))
@@ -388,9 +388,6 @@ if __name__ == "__main__":
         # SPR moves
         annotated_tree, moves = preproc.get_possible_spr_moves(prune_leaves=False)
         feats = preproc.extract_all_spr_features(moves, split_support_nj, split_support_upgma)
-
-        # Validation features
-        df = pd.read_csv("spr_test.csv")
 
         print(f"Found {len(moves)} SPR moves:\n")
         for i, move in enumerate(moves):
