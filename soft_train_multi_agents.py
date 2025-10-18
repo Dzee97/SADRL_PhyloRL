@@ -5,12 +5,12 @@ import numpy as np
 from joblib import Parallel, delayed
 from pathlib import Path
 from environment import PhyloEnv
-from rainbow_dqn_agent import RainbowLiteDQNAgent
+from soft_dqn_agent import SoftDQNAgent
 
 
 def train_agent_process(agent_id, samples_dir, raxmlng_path, episodes, horizon, checkpoint_dir,
-                        checkpoint_freq, update_freq, hidden_dim, replay_size, min_replay_start, learning_rate,
-                        gamma, sigma_init, alpha, beta_start, tau, batch_size):
+                        checkpoint_freq, update_freq, hidden_dim, replay_size, replay_alpha, min_replay_start,
+                        learning_rate, gamma, alpha, beta_start, tau, batch_size):
     torch.set_num_threads(1)
 
     # Create environment for this process
@@ -18,15 +18,15 @@ def train_agent_process(agent_id, samples_dir, raxmlng_path, episodes, horizon, 
     feats = env.reset()
     feature_dim = feats.shape[1]
 
-    # Initialize Rainbow DQN agent
-    agent = RainbowLiteDQNAgent(feature_dim=feature_dim,
-                                hidden_dim=hidden_dim,
-                                learning_rate=learning_rate,
-                                gamma=gamma,
-                                sigma_init=sigma_init,
-                                alpha=alpha,
-                                tau=tau,
-                                replay_size=replay_size)
+    # Initialize Soft DQN agent
+    agent = SoftDQNAgent(feature_dim=feature_dim,
+                         hidden_dim=hidden_dim,
+                         learning_rate=learning_rate,
+                         gamma=gamma,
+                         tau=tau,
+                         alpha=alpha,
+                         replay_size=replay_size,
+                         replay_alpha=replay_alpha)
 
     step_counter = 0
     beta_frames = episodes * horizon
@@ -62,7 +62,7 @@ def train_agent_process(agent_id, samples_dir, raxmlng_path, episodes, horizon, 
         if (ep + 1) % 10 == 0:
             print(f"[Agent {agent_id}] Ep {ep+1}/{episodes} | "
                   f"Return: {current_return:.3f} | Highest Return: {highest_return:.3f} | Pars Return: {pars_return:.3f} | "
-                  f"Beta: {beta:.3f} | Avg Sigma: {agent.get_avg_sigma():.3f} | Cache hits: {env.cache_hits} | "
+                  f"Beta: {beta:.3f} | Alpha: {agent.alpha:.3f} | Cache hits: {env.cache_hits} | "
                   f"Cache size: {len(env.tree_cache)}")
 
         # Periodic saving
@@ -75,9 +75,9 @@ def train_agent_process(agent_id, samples_dir, raxmlng_path, episodes, horizon, 
     print(f"[Agent {agent_id}] Finished]")
 
 
-def rainbow_run_parallel_training(samples_dir, raxmlng_path, episodes, horizon, n_agents, n_cores, checkpoint_dir,
-                                  checkpoint_freq, update_freq, hidden_dim, replay_size, min_replay_start,
-                                  learning_rate, gamma, sigma_init, alpha, beta_start, tau, batch_size):
+def soft_run_parallel_training(samples_dir, raxmlng_path, episodes, horizon, n_agents, n_cores, checkpoint_dir,
+                               checkpoint_freq, update_freq, hidden_dim, replay_size, replay_alpha, min_replay_start,
+                               learning_rate, gamma, alpha, beta_start, tau, batch_size):
 
     # ---- Check for existing checkpoint directory ----
     if checkpoint_dir.exists():
@@ -107,14 +107,14 @@ def rainbow_run_parallel_training(samples_dir, raxmlng_path, episodes, horizon, 
                                      update_freq=update_freq,
                                      min_replay_start=min_replay_start,
                                      batch_size=batch_size,
-                                     # rainbow dqn agent params
+                                     # soft dqn agent params
                                      hidden_dim=hidden_dim,
                                      replay_size=replay_size,
+                                     replay_alpha=replay_alpha,
                                      learning_rate=learning_rate,
-                                     sigma_init=sigma_init,
+                                     beta_start=beta_start,
                                      gamma=gamma,
                                      alpha=alpha,
-                                     beta_start=beta_start,
                                      tau=tau)
         for agent_id in range(n_agents)
     )

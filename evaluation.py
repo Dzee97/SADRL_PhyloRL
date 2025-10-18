@@ -1,3 +1,4 @@
+from joblib import Parallel, delayed
 import re
 import torch
 import os
@@ -7,7 +8,9 @@ import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
 from pathlib import Path
 from environment import PhyloEnv
-from dqn_agent import QNetwork
+# from dqn_agent import QNetwork
+from rainbow_dqn_agent import NoisyQNetwork
+from soft_dqn_agent import QNetwork
 
 
 class EvalAgent:
@@ -68,7 +71,7 @@ def plot_over_checkpoints(evaluate_dir: Path):
         # Plot each agent as faint line
         for a in range(n_agents):
             ax1.plot(episode_nums, episode_max_mean_per_agent[a],
-                     color=color, alpha=0.3, linewidth=1.0, label="_agent_trace" if a > 0 else "Agents")
+                     color=color, alpha=0.4, linewidth=1.0, label="_agent_trace" if a > 0 else "Agents")
 
         # Mean + CI
         ax1.plot(episode_nums, episode_max_avg, color=color, linewidth=2.0, label="Mean LL")
@@ -91,7 +94,7 @@ def plot_over_checkpoints(evaluate_dir: Path):
         # Plot each agent as faint line
         for a in range(n_agents):
             ax2.plot(episode_nums, episode_argmax_mean_per_agent[a],
-                     color=color, alpha=0.3, linewidth=1.0, label="_agent_trace" if a > 0 else "Agents")
+                     color=color, alpha=0.4, linewidth=1.0, label="_agent_trace" if a > 0 else "Agents")
 
         ax2.plot(episode_nums, episode_argmax_avg, color=color, linewidth=2.0, label="Mean best step")
         ax2.fill_between(episode_nums,
@@ -116,8 +119,13 @@ def plot_over_checkpoints(evaluate_dir: Path):
 
 
 def evaluate_checkpoints(samples_dir: Path, start_tree_set: str, checkpoints_dir: Path, hidden_dim: int,
-                         evaluate_dir: Path, raxmlng_path: Path, horizon: int):
-    # ---- Check for existing evaluate directory ----
+                         evaluate_dir: Path, raxmlng_path: Path, horizon: int, n_jobs: int = 3):
+    """
+    Evaluate all agents across their checkpoints in parallel (one process per agent).
+    Each agent process uses a single PhyloEnv instance to reuse cached data.
+    """
+
+    # ---- Safety check for existing output ----
     if evaluate_dir.exists():
         answer = input(f"Evaluation directory '{evaluate_dir}' already exists. Overwrite? [y/N]: ").strip().lower()
         if answer not in {"y", "yes"}:
@@ -125,27 +133,26 @@ def evaluate_checkpoints(samples_dir: Path, start_tree_set: str, checkpoints_dir
             return
         print(f"Removing existing directory: {evaluate_dir}")
         shutil.rmtree(evaluate_dir)
-
     os.makedirs(evaluate_dir, exist_ok=True)
 
-    env = PhyloEnv(samples_dir, raxmlng_path, horizon=horizon)
-
-    feats = env.reset()
+    # ---- Base environment (just for metadata) ----
+    base_env = PhyloEnv(samples_dir, raxmlng_path, horizon=horizon)
+    feats = base_env.reset()
     feature_dim = feats.shape[1]
-    num_samples = len(env.samples)
+    num_samples = len(base_env.samples)
 
     if start_tree_set == "train":
-        num_start_trees = env.num_train_start_trees
+        num_start_trees = base_env.num_train_start_trees
     elif start_tree_set == "test":
-        num_start_trees = env.num_test_start_trees
+        num_start_trees = base_env.num_test_start_trees
     else:
         raise ValueError('start_tree_set must either be "train" or "test"')
+
     max_num_start_trees = max(num_start_trees)
 
-    checkpoints_files = checkpoints_dir.glob("agent_*_ep*.pt")
-    agent_nums = set()
-    episode_nums = set()
-
+    # ---- Identify all agents & checkpoints ----
+    checkpoints_files = list(checkpoints_dir.glob("agent_*_ep*.pt"))
+    agent_nums, episode_nums = set(), set()
     for f in checkpoints_files:
         match = re.search(r"agent_(\d+)_ep(\d+)\.pt", str(f))
         if match:
@@ -154,44 +161,61 @@ def evaluate_checkpoints(samples_dir: Path, start_tree_set: str, checkpoints_dir
 
     agent_nums = sorted(agent_nums)
     episode_nums = np.array(sorted(episode_nums))
+    n_agents, n_checkpoints = len(agent_nums), len(episode_nums)
 
-    n_agents = len(agent_nums)
-    n_checkpoints = len(episode_nums)
+    results = np.full((n_agents, num_samples, n_checkpoints, max_num_start_trees, horizon + 1), np.nan)
+    pars_lls = np.array([base_env.samples[i]["pars_ll"] for i in range(num_samples)])
 
-    results = np.full((n_agents, num_samples, n_checkpoints, max_num_start_trees, horizon+1), np.nan)
+    # ---- Worker function (evaluates one agent across all checkpoints) ----
+    def eval_single_agent(agent_idx, agent_num):
+        torch.set_num_threads(1)  # prevent oversubscription
+        env = PhyloEnv(samples_dir, raxmlng_path, horizon=horizon)  # reuse within agent
+        agent_results = np.full((num_samples, n_checkpoints, max_num_start_trees, horizon + 1), np.nan)
 
-    pars_lls = np.array([env.samples[i]["pars_ll"] for i in range(num_samples)])
+        print(f"[Agent {agent_num}] Starting evaluation with {n_checkpoints} checkpoints")
 
-    for agent_idx in range(n_agents):
-        for checkpoint_idx in range(n_checkpoints):
-            agent_num = agent_nums[agent_idx]
-            episode_num = episode_nums[checkpoint_idx]
+        for checkpoint_idx, episode_num in enumerate(episode_nums):
             checkpoint_file = checkpoints_dir / f"agent_{agent_num}_ep{episode_num}.pt"
             if not checkpoint_file.exists():
                 raise FileNotFoundError(f"Missing checkpoint: {checkpoint_file}")
-            print(f"Loading agent {agent_num} for episode checkpoint {episode_num}")
-            state_dict = torch.load(checkpoint_file)
 
+            print(f"[Agent {agent_num}] → Checkpoint {checkpoint_idx+1}/{n_checkpoints} (episode {episode_num})")
+
+            state_dict = torch.load(checkpoint_file, map_location="cpu")
             agent = EvalAgent(feature_dim, hidden_dim, state_dict)
+
             for sample_idx in range(num_samples):
-                print(f"Evaluating sample {sample_idx}")
                 for start_tree_idx in range(num_start_trees[sample_idx]):
                     feats = env.reset(sample_num=sample_idx, start_tree_set=start_tree_set,
                                       start_tree_num=start_tree_idx)
                     ep_lls = [env.current_ll]
                     done = False
-
                     while not done:
                         action_idx = agent.select_best_action(feats)
                         next_feats, reward, done = env.step(action_idx)
                         ep_lls.append(env.current_ll)
                         feats = next_feats
+                    agent_results[sample_idx, checkpoint_idx, start_tree_idx, :len(ep_lls)] = ep_lls
 
-                    results[agent_idx, sample_idx, checkpoint_idx, start_tree_idx] = ep_lls
+        print(f"[Agent {agent_num}] Finished evaluation.")
+        return agent_idx, agent_results
 
+    # ---- Run in parallel (one job per agent) ----
+    print(f"Starting evaluation of {n_agents} agents in parallel (n_jobs={n_jobs})...")
+    results_list = Parallel(n_jobs=n_jobs)(
+        delayed(eval_single_agent)(agent_idx, agent_num)
+        for agent_idx, agent_num in enumerate(agent_nums)
+    )
+
+    # ---- Merge results ----
+    for agent_idx, agent_results in results_list:
+        results[agent_idx, :, :, :, :] = agent_results
+
+    # ---- Save outputs ----
     np.save(evaluate_dir / "results.npy", results)
     np.save(evaluate_dir / "pars_lls.npy", pars_lls)
     np.save(evaluate_dir / "episode_nums.npy", episode_nums)
+    print(f"✅ Evaluation completed and saved to {evaluate_dir}")
 
 
 # def evaluate_agents(samples_dir, checkpoints_dir, raxml_path, horizon, n_agents=5, plot_dir="plots"):
