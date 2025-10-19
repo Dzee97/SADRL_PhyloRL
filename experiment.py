@@ -1,3 +1,5 @@
+import json
+import hashlib
 from pathlib import Path
 from functools import partial
 from sample_datasets import sample_dataset
@@ -33,23 +35,22 @@ sampling_cfg = dict(
 # Experiment sets
 EXPERIMENTS = {
     "Samples1Train10Test10": dict(num_samples=1, num_rand_train_trees=10, num_rand_test_trees=10),
-    "Samples10Train10Test10": dict(num_samples=10, num_rand_train_trees=10, num_rand_test_trees=10),
+    # "Samples10Train10Test10": dict(num_samples=10, num_rand_train_trees=10, num_rand_test_trees=10),
 }
 
 # Training parameters (shared)
 train_common = dict(
-    raxmlng_path=raxmlng_path,
     episodes=3000,
     horizon=20,
     n_agents=5,
     n_cores=2,
     checkpoint_freq=100,
-    update_freq=4,
+    update_freq=1,
     batch_size=128,
     hidden_dim=256,
-    replay_size=30_000,
+    replay_size=10_000,
     min_replay_start=1000,
-    learning_rate=5e-5,
+    learning_rate=1e-4,
     gamma=0.9,
     tau=0.005
 )
@@ -72,8 +73,22 @@ rainbow_cfg = dict(
 soft_cfg = dict(
     replay_alpha=0.6,
     beta_start=0.4,
-    alpha=0.5,
+    alpha=0.2,
 )
+
+# Hash full parameters for file names
+full_dqn_cfg = train_common | dqn_cfg
+full_rainbow_cfg = train_common | rainbow_cfg
+full_soft_cfg = train_common | soft_cfg
+
+
+def stable_hash(cfg):
+    return hashlib.md5(json.dumps(cfg, sort_keys=True).encode()).hexdigest()[:8]
+
+
+dqn_cfg_hash = stable_hash(full_dqn_cfg)
+rainbow_cfg_hash = stable_hash(full_rainbow_cfg)
+soft_cfg_hash = stable_hash(full_soft_cfg)
 
 # Evaluation config
 evaluate_cfg = dict(
@@ -95,44 +110,71 @@ def run_sampling():
         sample_fn(outdir=outdir, **cfg)
 
 
-def run_training(train_dqn=False, train_rainbow=False, train_soft=False):
+def run_training(train_dqn, train_rainbow, train_soft):
     """Run training for all experiments."""
     print("\n=== Training agents ===")
-    dqn_fn = partial(run_parallel_training, **train_common, **dqn_cfg)
-    rainbow_fn = partial(rainbow_run_parallel_training, **train_common, **rainbow_cfg)
-    soft_fn = partial(soft_run_parallel_training, **train_common, **soft_cfg)
+
+    dqn_fn = partial(run_parallel_training, raxmlng_path=raxmlng_path, **train_common, **dqn_cfg)
+    rainbow_fn = partial(rainbow_run_parallel_training, raxmlng_path=raxmlng_path, **train_common, **rainbow_cfg)
+    soft_fn = partial(soft_run_parallel_training, raxmlng_path=raxmlng_path, **train_common, **soft_cfg)
 
     for name in EXPERIMENTS.keys():
         samples_dir = BASE_DIR / name
         if train_dqn:
-            dqn_fn(samples_dir=samples_dir, checkpoint_dir=samples_dir / "checkpoints_dqn")
+            cfg_dir = samples_dir / f"dqn_{dqn_cfg_hash}"
+            cfg_dir.mkdir(parents=True, exist_ok=True)
+            (cfg_dir / "config.json").write_text(json.dumps(full_dqn_cfg, indent=4))
+            dqn_fn(samples_dir=samples_dir, checkpoint_dir=cfg_dir / "checkpoints")
         if train_rainbow:
-            rainbow_fn(samples_dir=samples_dir, checkpoint_dir=samples_dir / "checkpoints_rainbow")
+            cfg_dir = samples_dir / f"rainbow_{rainbow_cfg_hash}"
+            cfg_dir.mkdir(parents=True, exist_ok=True)
+            (cfg_dir / "config.json").write_text(json.dumps(full_rainbow_cfg, indent=4))
+            rainbow_fn(samples_dir=samples_dir, checkpoint_dir=cfg_dir / "checkpoints")
         if train_soft:
-            soft_fn(samples_dir=samples_dir, checkpoint_dir=samples_dir / "checkpoints_soft")
+            cfg_dir = samples_dir / f"soft_{soft_cfg_hash}"
+            cfg_dir.mkdir(parents=True, exist_ok=True)
+            (cfg_dir / "config.json").write_text(json.dumps(full_soft_cfg, indent=4))
+            soft_fn(samples_dir=samples_dir, checkpoint_dir=cfg_dir / "checkpoints")
 
 
-def run_evaluation():
+def run_evaluation(eval_dqn, eval_rainbow, eval_soft):
     """Evaluate trained checkpoints on train/test sets."""
     print("\n=== Evaluating agents ===")
     evaluate_fn = partial(evaluate_checkpoints, **evaluate_cfg)
 
     for name, cfg in EXPERIMENTS.items():
         samples_dir = BASE_DIR / name
-        checkpoints_dir = samples_dir / "checkpoints_soft"
         for set_type in ["train", "test"]:
             # skip test evaluation if not available
             if cfg["num_rand_test_trees"] == 0 and set_type == "test":
                 continue
-            evaluate_fn(
-                samples_dir=samples_dir,
-                start_tree_set=set_type,
-                checkpoints_dir=checkpoints_dir,
-                evaluate_dir=samples_dir / f"evaluate_{set_type}_soft"
-            )
+            if eval_dqn:
+                checkpoints_dir = samples_dir / f"dqn_{dqn_cfg_hash}" / "checkpoints"
+                evaluate_fn(
+                    samples_dir=samples_dir,
+                    start_tree_set=set_type,
+                    checkpoints_dir=checkpoints_dir,
+                    evaluate_dir=samples_dir / f"dqn_{dqn_cfg_hash}" / f"evaluate_{set_type}"
+                )
+            if eval_rainbow:
+                checkpoints_dir = samples_dir / f"rainbow_{rainbow_cfg_hash}" / "checkpoints"
+                evaluate_fn(
+                    samples_dir=samples_dir,
+                    start_tree_set=set_type,
+                    checkpoints_dir=checkpoints_dir,
+                    evaluate_dir=samples_dir / f"rainbow_{rainbow_cfg_hash}" / f"evaluate_{set_type}"
+                )
+            if eval_soft:
+                checkpoints_dir = samples_dir / f"soft_{soft_cfg_hash}" / "checkpoints"
+                evaluate_fn(
+                    samples_dir=samples_dir,
+                    start_tree_set=set_type,
+                    checkpoints_dir=checkpoints_dir,
+                    evaluate_dir=samples_dir / f"soft_{soft_cfg_hash}" / f"evaluate_{set_type}"
+                )
 
 
-def run_plotting():
+def run_plotting(plot_dqn, plot_rainbow, plot_soft):
     """Generate plots for evaluation results."""
     print("\n=== Plotting results ===")
     for name, cfg in EXPERIMENTS.items():
@@ -140,8 +182,15 @@ def run_plotting():
         for set_type in ["train", "test"]:
             if cfg["num_rand_test_trees"] == 0 and set_type == "test":
                 continue
-            eval_dir = samples_dir / f"evaluate_{set_type}_soft"
-            plot_over_checkpoints(evaluate_dir=eval_dir)
+            if plot_dqn:
+                eval_dir = samples_dir / f"dqn_{dqn_cfg_hash}" / f"evaluate_{set_type}"
+                plot_over_checkpoints(evaluate_dir=eval_dir)
+            if plot_rainbow:
+                eval_dir = samples_dir / f"rainbow_{rainbow_cfg_hash}" / f"evaluate_{set_type}"
+                plot_over_checkpoints(evaluate_dir=eval_dir)
+            if plot_soft:
+                eval_dir = samples_dir / f"soft_{soft_cfg_hash}" / f"evaluate_{set_type}"
+                plot_over_checkpoints(evaluate_dir=eval_dir)
 
 
 # === MAIN EXECUTION ===
@@ -153,11 +202,16 @@ if __name__ == "__main__":
     RUN_EVALUATION = True
     RUN_PLOTTING = True
 
+    # toggle these flags to control which algorithms to run
+    DQN = False
+    RAINBOW = False
+    SOFT = True
+
     if RUN_SAMPLING:
         run_sampling()
     if RUN_TRAINING:
-        run_training(train_soft=True)
+        run_training(train_dqn=DQN, train_rainbow=RAINBOW, train_soft=SOFT)
     if RUN_EVALUATION:
-        run_evaluation()
+        run_evaluation(eval_dqn=DQN, eval_rainbow=RAINBOW, eval_soft=SOFT)
     if RUN_PLOTTING:
-        run_plotting()
+        run_plotting(plot_dqn=DQN, plot_rainbow=RAINBOW, plot_soft=SOFT)
