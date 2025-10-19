@@ -35,7 +35,7 @@ sampling_cfg = dict(
 # Experiment sets
 EXPERIMENTS = {
     "Samples1Train10Test10": dict(num_samples=1, num_rand_train_trees=10, num_rand_test_trees=10),
-    # "Samples10Train10Test10": dict(num_samples=10, num_rand_train_trees=10, num_rand_test_trees=10),
+    "Samples10Train10Test10": dict(num_samples=10, num_rand_train_trees=10, num_rand_test_trees=10),
 }
 
 # Training parameters (shared)
