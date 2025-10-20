@@ -27,7 +27,7 @@ class EvalAgent:
             return int(torch.argmax(q_vals).item())
 
 
-def plot_over_checkpoints(evaluate_dir: Path):
+def plot_over_checkpoints(evaluate_dir: Path, dataset_name: str, algorithm_name: str, set_type: str):
     """
     Plot evaluation results across checkpoints for each sample.
 
@@ -39,6 +39,9 @@ def plot_over_checkpoints(evaluate_dir: Path):
     episode_nums = np.load(evaluate_dir / "episode_nums.npy")
 
     n_agents, n_samples, n_checkpoints, n_start_trees, n_steps = results.shape
+
+    plot_dir = evaluate_dir / "plots"
+    os.makedirs(plot_dir, exist_ok=True)
 
     for sample_idx in range(n_samples):
         sample_results = results[:, sample_idx]  # (n_agents, n_checkpoints, n_start_trees, n_steps)
@@ -110,12 +113,14 @@ def plot_over_checkpoints(evaluate_dir: Path):
         ax1.set_xticklabels(episode_nums, rotation=45)
         ax1.grid(alpha=0.3)
         ax1.set_title(
-            f"Sample {sample_idx} — Highest LL per episode (mean ± 95% CI, with agent traces)"
+            f"Dataset: {dataset_name} - {algorithm_name} - Sample {sample_idx+1} - {set_type.capitalize()} starting trees\n"
+            "Highest LL per episode (mean ± 95% CI, with agent traces)"
         )
 
         fig.tight_layout()
-        # plt.savefig(f"sample{sample_idx}_LL_over_checkpoints.png", dpi=150)
-        plt.show()
+        plot_file = plot_dir / f"sample{sample_idx+1}.png"
+        plt.savefig(plot_file, dpi=150)
+        print(f"Plot saved to {plot_file}")
 
 
 def evaluate_checkpoints(samples_dir: Path, start_tree_set: str, checkpoints_dir: Path, hidden_dim: int,

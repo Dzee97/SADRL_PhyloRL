@@ -34,7 +34,7 @@ sampling_cfg = dict(
 
 # Experiment sets
 EXPERIMENTS = {
-    "Samples1Train10Test10": dict(num_samples=1, num_rand_train_trees=10, num_rand_test_trees=10),
+    # "Samples1Train10Test10": dict(num_samples=1, num_rand_train_trees=10, num_rand_test_trees=10),
     "Samples10Train10Test10": dict(num_samples=10, num_rand_train_trees=10, num_rand_test_trees=10),
 }
 
@@ -48,7 +48,7 @@ train_common = dict(
     update_freq=1,
     batch_size=128,
     hidden_dim=256,
-    replay_size=10_000,
+    replay_size=30_000,
     min_replay_start=1000,
     learning_rate=1e-4,
     gamma=0.9,
@@ -184,13 +184,15 @@ def run_plotting(plot_dqn, plot_rainbow, plot_soft):
                 continue
             if plot_dqn:
                 eval_dir = samples_dir / f"dqn_{dqn_cfg_hash}" / f"evaluate_{set_type}"
-                plot_over_checkpoints(evaluate_dir=eval_dir)
+                plot_over_checkpoints(evaluate_dir=eval_dir, dataset_name=name, algorithm_name="DQN", set_type=set_type)
             if plot_rainbow:
                 eval_dir = samples_dir / f"rainbow_{rainbow_cfg_hash}" / f"evaluate_{set_type}"
-                plot_over_checkpoints(evaluate_dir=eval_dir)
+                plot_over_checkpoints(evaluate_dir=eval_dir, dataset_name=name,
+                                      algorithm_name="Rainbow", set_type=set_type)
             if plot_soft:
                 eval_dir = samples_dir / f"soft_{soft_cfg_hash}" / f"evaluate_{set_type}"
-                plot_over_checkpoints(evaluate_dir=eval_dir)
+                plot_over_checkpoints(evaluate_dir=eval_dir, dataset_name=name,
+                                      algorithm_name="Soft Q-Network", set_type=set_type)
 
 
 # === MAIN EXECUTION ===
