@@ -186,12 +186,11 @@ class SoftDQNAgent:
         # Update alpha (temperature)
         with torch.no_grad():
             q_next = self.q1(next_feats_flat).view(B, N)
-        alpha_for_loss = self.log_alpha.exp()
-        log_probs = torch.log_softmax(q_next / alpha_for_loss, dim=1)
-        probs = torch.softmax(q_next / alpha_for_loss, dim=1)
-        policy_entropy = -(probs * log_probs).sum(dim=1).mean()
+            log_probs = torch.log_softmax(q_next / alpha, dim=1)
+            probs = torch.softmax(q_next / alpha, dim=1)
+            policy_entropy = -(probs * log_probs).sum(dim=1).mean()
 
-        alpha_loss = self.log_alpha * (policy_entropy - target_entropy).detach()
+        alpha_loss = self.log_alpha * (policy_entropy - target_entropy)
         self.alpha_optimizer.zero_grad()
         alpha_loss.backward()
         self.alpha_optimizer.step()

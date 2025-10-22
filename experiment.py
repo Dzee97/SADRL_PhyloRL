@@ -51,7 +51,7 @@ train_common = dict(
     update_freq=1,
     batch_size=128,
     hidden_dim=256,
-    replay_size=10_000,
+    replay_size=60_000,
     min_replay_start=1000,
     learning_rate=1e-4,
     gamma=0.9,
@@ -76,7 +76,7 @@ rainbow_cfg = dict(
 soft_cfg = dict(
     replay_alpha=0.6,
     replay_beta_start=0.4,
-    replay_beta_frames=30_000,
+    replay_beta_frames=50_000,
     temp_alpha_init=2.0,
     temp_alpha_frames=50_000
 )

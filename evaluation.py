@@ -119,8 +119,8 @@ def plot_over_checkpoints(evaluate_dir: Path, dataset_name: str, algorithm_name:
         ax1.set_xticklabels(episode_nums, rotation=45)
         ax1.grid(alpha=0.3)
         ax1.set_title(
-            f"Dataset: {dataset_name} - {algorithm_name} - Sample {sample_idx+1} - \
-                {loops_suffix.replace('_', ' ').capitalize()}s\n"
+            f"Dataset: {dataset_name} - {algorithm_name} - Sample {sample_idx+1} - "
+            f"{loops_suffix.replace('_', ' ').capitalize()}\n"
             "Highest LL per episode (mean ± 95% CI, with agent traces)"
         )
 
