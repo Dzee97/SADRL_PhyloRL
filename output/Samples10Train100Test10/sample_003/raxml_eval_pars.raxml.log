@@ -1,0 +1,145 @@
+
+RAxML-NG v. 1.2.2-master released on 30.04.2024 by The Exelixis Lab.
+Developed by: Alexey M. Kozlov and Alexandros Stamatakis.
+Contributors: Diego Darriba, Tomas Flouri, Benoit Morel, Sarah Lutteropp, Ben Bettisworth, Julia Haag, Anastasis Togkousidis.
+Latest version: https://github.com/amkozlov/raxml-ng
+Questions/problems/suggestions? Please visit: https://groups.google.com/forum/#!forum/raxml
+
+System: Intel(R) Core(TM) i7-6700HQ CPU @ 2.60GHz, 4 cores, 7 GB RAM
+
+RAxML-NG was called at 22-Oct-2025 17:02:45 as follows:
+
+dependencies/raxmlng/raxml-ng --evaluate --msa output/Samples10Train100Test10/sample_003/sample_aln.fasta --model GTR+I+G --prefix output/Samples10Train100Test10/sample_003/raxml_eval_pars --tree output/Samples10Train100Test10/sample_003/raxml_pars.raxml.startTree
+
+Analysis options:
+  run mode: Evaluate tree likelihood
+  start tree(s): user
+  random seed: 1761145365
+  tip-inner: OFF
+  pattern compression: ON
+  per-rate scalers: OFF
+  site repeats: ON
+  logLH epsilon: general: 0.100000, brlen-triplet: 1000.000000
+  branch lengths: proportional (ML estimate, algorithm: NR-FAST)
+  SIMD kernels: AVX2
+  parallelization: coarse-grained (auto), PTHREADS (auto)
+
+[00:00:00] Reading alignment from file: output/Samples10Train100Test10/sample_003/sample_aln.fasta
+[00:00:00] Loaded alignment with 7 taxa and 678 sites
+
+Alignment comprises 1 partitions and 357 patterns
+
+Partition 0: noname
+Model: GTR+FO+I+G4m
+Alignment sites / patterns: 678 / 357
+Gaps: 20.94 %
+Invariant sites: 51.18 %
+
+
+NOTE: Binary MSA file created: output/Samples10Train100Test10/sample_003/raxml_eval_pars.raxml.rba
+
+Parallelization scheme autoconfig: 1 worker(s) x 4 thread(s)
+
+[00:00:00] Loading user starting tree(s) from: output/Samples10Train100Test10/sample_003/raxml_pars.raxml.startTree
+Parallel reduction/worker buffer size: 1 KB  / 0 KB
+
+[00:00:00] Data distribution: max. partitions/sites/weight per thread: 1 / 90 / 1440
+[00:00:00] Data distribution: max. searches per worker: 10
+
+Evaluating 10 trees
+
+[00:00:00] Tree #1, initial LogLikelihood: -3122.118749
+
+[00:00:00 -3122.118749] Initial branch length optimization
+[00:00:00 -3047.898265] Model parameter optimization (eps = 0.100000)
+
+[00:00:00] Tree #1, final logLikelihood: -2935.142749
+
+[00:00:00] Tree #2, initial LogLikelihood: -3122.118749
+
+[00:00:00 -3122.118749] Initial branch length optimization
+[00:00:00 -3047.783200] Model parameter optimization (eps = 0.100000)
+
+[00:00:00] Tree #2, final logLikelihood: -2935.146933
+
+[00:00:00] Tree #3, initial LogLikelihood: -3122.118749
+
+[00:00:00 -3122.118749] Initial branch length optimization
+[00:00:00 -3047.866993] Model parameter optimization (eps = 0.100000)
+
+[00:00:00] Tree #3, final logLikelihood: -2935.135395
+
+[00:00:00] Tree #4, initial LogLikelihood: -3122.118749
+
+[00:00:00 -3122.118749] Initial branch length optimization
+[00:00:00 -3047.898524] Model parameter optimization (eps = 0.100000)
+
+[00:00:00] Tree #4, final logLikelihood: -2935.142975
+
+[00:00:00] Tree #5, initial LogLikelihood: -3122.118749
+
+[00:00:00 -3122.118749] Initial branch length optimization
+[00:00:00 -3047.784271] Model parameter optimization (eps = 0.100000)
+
+[00:00:00] Tree #5, final logLikelihood: -2935.146167
+
+[00:00:00] Tree #6, initial LogLikelihood: -3122.118749
+
+[00:00:00 -3122.118749] Initial branch length optimization
+[00:00:00 -3047.764332] Model parameter optimization (eps = 0.100000)
+
+[00:00:00] Tree #6, final logLikelihood: -2935.145454
+
+[00:00:00] Tree #7, initial LogLikelihood: -3122.118749
+
+[00:00:00 -3122.118749] Initial branch length optimization
+[00:00:00 -3047.766094] Model parameter optimization (eps = 0.100000)
+
+[00:00:00] Tree #7, final logLikelihood: -2935.146581
+
+[00:00:00] Tree #8, initial LogLikelihood: -3122.118749
+
+[00:00:00 -3122.118749] Initial branch length optimization
+[00:00:00 -3047.836825] Model parameter optimization (eps = 0.100000)
+
+[00:00:00] Tree #8, final logLikelihood: -2935.142272
+
+[00:00:00] Tree #9, initial LogLikelihood: -3122.118749
+
+[00:00:00 -3122.118749] Initial branch length optimization
+[00:00:00 -3047.762271] Model parameter optimization (eps = 0.100000)
+
+[00:00:00] Tree #9, final logLikelihood: -2935.142137
+
+[00:00:00] Tree #10, initial LogLikelihood: -3122.118749
+
+[00:00:00 -3122.118749] Initial branch length optimization
+[00:00:00 -3047.812194] Model parameter optimization (eps = 0.100000)
+
+[00:00:00] Tree #10, final logLikelihood: -2935.143030
+
+
+Optimized model parameters:
+
+   Partition 0: noname
+   Rate heterogeneity: GAMMA (4 cats, mean),  alpha: 1.174482 (ML),  weights&rates: (0.250000,0.170398) (0.250000,0.523574) (0.250000,1.023812) (0.250000,2.282216) 
+   P-inv (ML): 0.243540
+   Base frequencies (ML): 0.232999 0.237908 0.236455 0.292638 
+   Substitution rates (ML): 1.669759 4.781583 1.671589 0.726982 7.243723 1.000000 
+
+
+Final LogLikelihood: -2935.135395
+
+AIC score: 5912.270791 / AICc score: 5913.679327 / BIC score: 6007.172884
+Free parameters (model + branch lengths): 21
+
+Best ML tree saved to: /home/dzee/Documents/Studie/Seminar Advanced Deep RL/SADRL_PhyloRL/output/Samples10Train100Test10/sample_003/raxml_eval_pars.raxml.bestTree
+All ML trees saved to: /home/dzee/Documents/Studie/Seminar Advanced Deep RL/SADRL_PhyloRL/output/Samples10Train100Test10/sample_003/raxml_eval_pars.raxml.mlTrees
+Optimized model saved to: /home/dzee/Documents/Studie/Seminar Advanced Deep RL/SADRL_PhyloRL/output/Samples10Train100Test10/sample_003/raxml_eval_pars.raxml.bestModel
+
+Execution log saved to: /home/dzee/Documents/Studie/Seminar Advanced Deep RL/SADRL_PhyloRL/output/Samples10Train100Test10/sample_003/raxml_eval_pars.raxml.log
+
+Analysis started: 22-Oct-2025 17:02:45 / finished: 22-Oct-2025 17:02:46
+
+Elapsed time: 0.332 seconds
+

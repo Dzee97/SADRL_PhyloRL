@@ -93,11 +93,17 @@ class PrioritizedReplayBuffer:
 
 class SoftDQNAgent:
     def __init__(self, feature_dim, hidden_dim, learning_rate, gamma, tau,
-                 alpha, replay_size, replay_alpha, device=None):
+                 temp_alpha_init, replay_size, replay_alpha, device=None):
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
         self.gamma = gamma
         self.tau = tau
-        self.alpha = alpha
+
+        # Learnable temperature parameter (log-scale for stability)
+        self.log_alpha = torch.tensor([torch.log(torch.tensor(temp_alpha_init))],
+                                      dtype=torch.float32,
+                                      device=self.device,
+                                      requires_grad=True)
+        self.alpha_optimizer = optim.Adam([self.log_alpha], lr=3e-4)
 
         # Clipped double Q networks
         self.q1 = QNetwork(feature_dim, hidden_dim).to(self.device)
@@ -115,6 +121,10 @@ class SoftDQNAgent:
 
         self.replay = PrioritizedReplayBuffer(replay_size, replay_alpha, self.device)
 
+    @property
+    def alpha(self):
+        return self.log_alpha.exp().item()
+
     def select_action(self, state_action_feats, eval_mode=False):
         """
         Select an action given all possible (state, action) feature vectors.
@@ -129,20 +139,23 @@ class SoftDQNAgent:
             if eval_mode:
                 action = torch.argmax(q_values).item()
             else:
-                probs = torch.softmax(q_values / self.alpha, dim=0)
+                alpha = self.log_alpha.exp()
+                probs = torch.softmax(q_values / alpha, dim=0)
                 action = torch.multinomial(probs, 1).item()
 
             return action
 
-    def update(self, batch_size, beta):
+    def update(self, batch_size, beta, target_entropy):
         if len(self.replay) < batch_size:
             return None
 
         feats, rewards, next_feats, dones, indices, weights = self.replay.sample(batch_size, beta)
 
+        # Current Q-values
         q1_vals = self.q1(feats)
         q2_vals = self.q2(feats)
 
+        # Target soft value
         with torch.no_grad():
             B, N, F = next_feats.shape
             next_feats_flat = next_feats.view(B * N, F)
@@ -151,15 +164,17 @@ class SoftDQNAgent:
 
             q_min = torch.min(q1_next, q2_next)
 
-            soft_value = self.alpha * torch.logsumexp(q_min / self.alpha, dim=1)
+            alpha = self.log_alpha.exp()
+            soft_value = self.alpha * torch.logsumexp(q_min / alpha, dim=1)
             q_target = rewards + self.gamma * (1 - dones) * soft_value
 
+        # TD losses
         td_error1 = q_target - q1_vals
         td_error2 = q_target - q2_vals
-
         loss1 = (weights * td_error1.pow(2)).mean()
         loss2 = (weights * td_error2.pow(2)).mean()
 
+        # Update Q-networks
         self.optimizer1.zero_grad()
         loss1.backward()
         self.optimizer1.step()
@@ -168,15 +183,31 @@ class SoftDQNAgent:
         loss2.backward()
         self.optimizer2.step()
 
+        # Update alpha (temperature)
+        with torch.no_grad():
+            q_next = self.q1(next_feats_flat).view(B, N)
+        alpha_for_loss = self.log_alpha.exp()
+        log_probs = torch.log_softmax(q_next / alpha_for_loss, dim=1)
+        probs = torch.softmax(q_next / alpha_for_loss, dim=1)
+        policy_entropy = -(probs * log_probs).sum(dim=1).mean()
+
+        alpha_loss = self.log_alpha * (policy_entropy - target_entropy).detach()
+        self.alpha_optimizer.zero_grad()
+        alpha_loss.backward()
+        self.alpha_optimizer.step()
+        self.log_alpha.data.clamp_(min=-10.0, max=2.0)
+
+        # Update PER priorities
         new_prios = 0.5 * (td_error1.abs() + td_error2.abs()).detach() + 1e-6
         self.replay.update_priorities(indices, new_prios)
 
+        # Update target networks
         for t_p, p in zip(self.target_q1.parameters(), self.q1.parameters()):
             t_p.data.lerp_(p.data, self.tau)
         for t_p, p in zip(self.target_q2.parameters(), self.q2.parameters()):
             t_p.data.lerp_(p.data, self.tau)
 
-        return (loss1.item() + loss2.item()) / 2
+        return (loss1.item() + loss2.item()) / 2, policy_entropy.item()
 
     def save(self, path: Path):
         path.parent.mkdir(parents=True, exist_ok=True)

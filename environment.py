@@ -91,7 +91,7 @@ class PhyloEnv:
             self.tree_cache[tree_hash] = (start_tree_optim, self.current_ll)
 
         self.current_tree, self.current_moves, self.current_feats = self._extract_features(start_tree_optim)
-        return self.current_feats
+        return tree_hash, self.current_feats
 
     def step(self, move_idx):
         """
@@ -115,7 +115,17 @@ class PhyloEnv:
         self.step_count += 1
         done = self.step_count >= self.horizon
 
-        return self.current_feats, reward, done
+        return tree_hash, self.current_feats, reward, done
+
+    def preview_step(self, move_idx):
+        """
+        Preview the resulting tree hash from performing one SPR move, but keep the current tree state
+        """
+        move = self.current_moves[move_idx]
+        neighbor_tree = perform_spr_move(self.current_tree, move)
+        tree_hash = unrooted_tree_hash(neighbor_tree)
+
+        return tree_hash
 
     def _extract_features(self, tree: Tree):
         """Compute the feature vector for current tree."""

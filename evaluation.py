@@ -9,7 +9,6 @@ from matplotlib.ticker import MaxNLocator
 from pathlib import Path
 from environment import PhyloEnv
 # from dqn_agent import QNetwork
-from rainbow_dqn_agent import NoisyQNetwork
 from soft_dqn_agent import QNetwork
 
 
@@ -26,8 +25,15 @@ class EvalAgent:
             q_vals = self.q_net(x)
             return int(torch.argmax(q_vals).item())
 
+    def select_sorted_best_actions(self, feats):
+        with torch.no_grad():
+            x = torch.tensor(feats, dtype=torch.float32, device=self.device)
+            q_vals = self.q_net(x)
+            q_vals_sorted, indices_sorted = torch.sort(q_vals, descending=True)
+            return indices_sorted.cpu().numpy()
 
-def plot_over_checkpoints(evaluate_dir: Path, dataset_name: str, algorithm_name: str, set_type: str):
+
+def plot_over_checkpoints(evaluate_dir: Path, dataset_name: str, algorithm_name: str, loops_suffix: str):
     """
     Plot evaluation results across checkpoints for each sample.
 
@@ -113,18 +119,19 @@ def plot_over_checkpoints(evaluate_dir: Path, dataset_name: str, algorithm_name:
         ax1.set_xticklabels(episode_nums, rotation=45)
         ax1.grid(alpha=0.3)
         ax1.set_title(
-            f"Dataset: {dataset_name} - {algorithm_name} - Sample {sample_idx+1} - {set_type.capitalize()} starting trees\n"
+            f"Dataset: {dataset_name} - {algorithm_name} - Sample {sample_idx+1} - \
+                {loops_suffix.replace('_', ' ').capitalize()}s\n"
             "Highest LL per episode (mean ± 95% CI, with agent traces)"
         )
 
         fig.tight_layout()
         plot_file = plot_dir / f"sample{sample_idx+1}.png"
-        plt.savefig(plot_file, dpi=150)
+        fig.savefig(plot_file, dpi=150)
         print(f"Plot saved to {plot_file}")
 
 
 def evaluate_checkpoints(samples_dir: Path, start_tree_set: str, checkpoints_dir: Path, hidden_dim: int,
-                         evaluate_dir: Path, raxmlng_path: Path, horizon: int, n_jobs: int = 3):
+                         evaluate_dir: Path, raxmlng_path: Path, horizon: int, forbid_loops: bool, n_jobs: int = 3):
     """
     Evaluate all agents across their checkpoints in parallel (one process per agent).
     Each agent process uses a single PhyloEnv instance to reuse cached data.
@@ -142,7 +149,7 @@ def evaluate_checkpoints(samples_dir: Path, start_tree_set: str, checkpoints_dir
 
     # ---- Base environment (just for metadata) ----
     base_env = PhyloEnv(samples_dir, raxmlng_path, horizon=horizon)
-    feats = base_env.reset()
+    tree_hash, feats = base_env.reset()
     feature_dim = feats.shape[1]
     num_samples = len(base_env.samples)
 
@@ -191,13 +198,22 @@ def evaluate_checkpoints(samples_dir: Path, start_tree_set: str, checkpoints_dir
 
             for sample_idx in range(num_samples):
                 for start_tree_idx in range(num_start_trees[sample_idx]):
-                    feats = env.reset(sample_num=sample_idx, start_tree_set=start_tree_set,
-                                      start_tree_num=start_tree_idx)
+                    tree_hash, feats = env.reset(sample_num=sample_idx, start_tree_set=start_tree_set,
+                                                 start_tree_num=start_tree_idx)
                     ep_lls = [env.current_ll]
+                    visited_trees = {tree_hash}
                     done = False
                     while not done:
-                        action_idx = agent.select_best_action(feats)
-                        next_feats, reward, done = env.step(action_idx)
+                        if forbid_loops:
+                            action_idxs = agent.select_sorted_best_actions(feats)
+                            for action_idx in action_idxs:
+                                preview_tree_hash = env.preview_step(action_idx)
+                                if preview_tree_hash not in visited_trees:
+                                    break
+                        else:
+                            action_idx = agent.select_best_action(feats)
+                        next_tree_hash, next_feats, reward, done = env.step(action_idx)
+                        visited_trees.add(next_tree_hash)
                         ep_lls.append(env.current_ll)
                         feats = next_feats
                     agent_results[sample_idx, checkpoint_idx, start_tree_idx, :len(ep_lls)] = ep_lls
