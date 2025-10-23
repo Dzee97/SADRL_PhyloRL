@@ -165,7 +165,7 @@ def run_evaluation(eval_dqn, eval_rainbow, eval_soft, set_type="test"):
 
         samples_dir = BASE_DIR / name
 
-        # Evaluate checkpoints on test trees on self, and on datasets with only test trees
+        # Evaluate checkpoints on test trees on self, and on validation datasets with only test trees
         evaluate_samples_dirs = {n: BASE_DIR / n for n,
                                  c in EXPERIMENTS.items() if n == name or c["num_rand_train_trees"] == 0}
 
