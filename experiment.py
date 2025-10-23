@@ -35,12 +35,12 @@ sampling_cfg = dict(
 # Experiment sets
 EXPERIMENTS = {
     "Samples1Train100Test10": dict(num_samples=1, num_rand_train_trees=100, num_rand_test_trees=10),
-    # "Samples10Train100Test10": dict(num_samples=10, num_rand_train_trees=100, num_rand_test_trees=10),
-    # "Samples20Train100Test10": dict(num_samples=20, num_rand_train_trees=100, num_rand_test_trees=10),
+    "Samples10Train100Test10": dict(num_samples=10, num_rand_train_trees=100, num_rand_test_trees=10),
+    "Samples20Train100Test10": dict(num_samples=20, num_rand_train_trees=100, num_rand_test_trees=10),
 }
 
 # Set number of cores for parallel agent training
-n_cores = 1
+n_cores = 3
 
 # Training parameters (shared)
 train_common = dict(
@@ -51,7 +51,7 @@ train_common = dict(
     update_freq=1,
     batch_size=128,
     hidden_dim=256,
-    replay_size=60_000,
+    replay_size=10_000,
     min_replay_start=1000,
     learning_rate=1e-4,
     gamma=0.9,
@@ -74,7 +74,7 @@ rainbow_cfg = dict(
 
 # Soft DQN agent parameters
 soft_cfg = dict(
-    replay_alpha=0.6,
+    replay_alpha=0.0,
     replay_beta_start=0.4,
     replay_beta_frames=50_000,
     temp_alpha_init=2.0,

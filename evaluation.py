@@ -127,6 +127,7 @@ def plot_over_checkpoints(evaluate_dir: Path, dataset_name: str, algorithm_name:
         fig.tight_layout()
         plot_file = plot_dir / f"sample{sample_idx+1}.png"
         fig.savefig(plot_file, dpi=150)
+        plt.close(fig)
         print(f"Plot saved to {plot_file}")
 
 
