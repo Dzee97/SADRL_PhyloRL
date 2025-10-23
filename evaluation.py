@@ -150,7 +150,7 @@ def evaluate_checkpoints(samples_dir: Path, start_tree_set: str, checkpoints_dir
 
     # ---- Base environment (just for metadata) ----
     base_env = PhyloEnv(samples_dir, raxmlng_path, horizon=horizon)
-    tree_hash, feats = base_env.reset()
+    tree_hash, feats = base_env.reset(start_tree_set="test")
     feature_dim = feats.shape[1]
     num_samples = len(base_env.samples)
 
