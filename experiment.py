@@ -46,7 +46,7 @@ n_cores = 3
 
 # Training parameters (shared)
 train_common = dict(
-    episodes=3000,
+    episodes=6000,
     horizon=20,
     n_agents=5,
     checkpoint_freq=100,
@@ -78,9 +78,9 @@ rainbow_cfg = dict(
 soft_cfg = dict(
     replay_alpha=0.6,
     replay_beta_start=0.4,
-    replay_beta_frames=30_000,
+    replay_beta_frames=100_000,
     temp_alpha_init=2.0,
-    temp_alpha_frames=60_000
+    temp_alpha_frames=100_000
 )
 
 # Hash full parameters for file names
