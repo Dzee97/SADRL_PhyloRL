@@ -206,7 +206,7 @@ def run_evaluation(eval_dqn, eval_rainbow, eval_soft, set_type="test"):
                         evaluate_dir=evaluate_dir
                     )
                     plot_over_checkpoints(evaluate_dir=evaluate_dir, dataset_name=name,
-                                          algorithm_name="Soft Q-Learning")
+                                          algorithm_name="Soft Q-Learning", loops_suffix=loops_suffix)
 
 
 def run_plotting(plot_dqn, plot_rainbow, plot_soft):
