@@ -38,7 +38,7 @@ EXPERIMENTS = {
     "Samples10Train100Test10": dict(num_samples=10, num_rand_train_trees=100, num_rand_test_trees=10),
     "Samples20Train100Test10": dict(num_samples=20, num_rand_train_trees=100, num_rand_test_trees=10),
     # Validation dataset
-    "Samples20Train0Test10": dict(num_samples=20, num_rand_train_trees=0, num_rand_test_trees=10),
+    "ValidationSet": dict(num_samples=20, num_rand_train_trees=0, num_rand_test_trees=10),
 }
 
 # Set number of cores for parallel agent training
@@ -76,11 +76,11 @@ rainbow_cfg = dict(
 
 # Soft DQN agent parameters
 soft_cfg = dict(
-    replay_alpha=0.0,
+    replay_alpha=0.6,
     replay_beta_start=0.4,
-    replay_beta_frames=50_000,
+    replay_beta_frames=30_000,
     temp_alpha_init=2.0,
-    temp_alpha_frames=50_000
+    temp_alpha_frames=60_000
 )
 
 # Hash full parameters for file names
