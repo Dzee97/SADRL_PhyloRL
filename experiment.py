@@ -42,7 +42,7 @@ EXPERIMENTS = {
 }
 
 # Set number of cores for parallel agent training
-n_cores = 3
+n_cores = 5
 
 # Training parameters (shared)
 train_common = dict(
