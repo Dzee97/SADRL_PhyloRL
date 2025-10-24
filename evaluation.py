@@ -131,17 +131,36 @@ def plot_over_checkpoints(evaluate_dir: Path, dataset_name: str, algorithm_name:
         print(f"Plot saved to {plot_file}")
 
 
-def plot_checkpoint_tables(evaluate_dir: Path, dataset_name: str, algorithm_name: str, loops_suffix: str):
+def plot_checkpoint_tables(evaluate_dir: Path, dataset_name: str, algorithm_name: str, loops_suffix: str,
+                           checkpoint_interval: int = 10):
     """
     Create heatmap tables for each agent and sample showing max LL and steps.
     Rows = checkpoints, Columns = starting trees.
     Cells are colored based on how close the LL is to the parsimony LL.
+
+    Args:
+        checkpoint_interval: If specified, only plot first, last, and every Nth checkpoint in between.
+                           If None, plot all checkpoints.
     """
     results = np.load(evaluate_dir / "results.npy")
     pars_lls = np.load(evaluate_dir / "pars_lls.npy")
     episode_nums = np.load(evaluate_dir / "episode_nums.npy")
 
     n_agents, n_samples, n_checkpoints, n_start_trees, n_steps = results.shape
+
+    # Select which checkpoints to plot
+    if checkpoint_interval is not None:
+        selected_checkpoint_indices = [0]  # Always include first
+
+        # Add intermediate checkpoints at specified interval
+        for i in range(checkpoint_interval, n_checkpoints - 1, checkpoint_interval):
+            selected_checkpoint_indices.append(i)
+
+        # Always include last if not already included
+        if selected_checkpoint_indices[-1] != n_checkpoints - 1:
+            selected_checkpoint_indices.append(n_checkpoints - 1)
+    else:
+        selected_checkpoint_indices = list(range(n_checkpoints))
 
     plot_dir = evaluate_dir / "checkpoint_tables"
     os.makedirs(plot_dir, exist_ok=True)
@@ -151,8 +170,13 @@ def plot_checkpoint_tables(evaluate_dir: Path, dataset_name: str, algorithm_name
             # Get data for this agent and sample
             agent_sample_results = results[agent_idx, sample_idx, :, :, :]  # (n_checkpoints, n_start_trees, n_steps)
 
+            # Filter to selected checkpoints
+            agent_sample_results = agent_sample_results[selected_checkpoint_indices, :, :]
+            selected_episode_nums = episode_nums[selected_checkpoint_indices]
+            n_selected = len(selected_checkpoint_indices)
+
             # Compute max LL and step index for each checkpoint and start tree
-            max_lls = np.nanmax(agent_sample_results, axis=2)  # (n_checkpoints, n_start_trees)
+            max_lls = np.nanmax(agent_sample_results, axis=2)  # (n_selected, n_start_trees)
             argmax_steps = np.nanargmax(agent_sample_results, axis=2)  # same shape
 
             # Find valid columns (start trees that have data)
@@ -163,7 +187,7 @@ def plot_checkpoint_tables(evaluate_dir: Path, dataset_name: str, algorithm_name
                 continue
 
             # Filter to valid trees only
-            max_lls = max_lls[:, valid_mask]  # (n_checkpoints, n_valid_trees)
+            max_lls = max_lls[:, valid_mask]  # (n_selected, n_valid_trees)
             argmax_steps = argmax_steps[:, valid_mask]
 
             pars_ll = pars_lls[sample_idx]
@@ -183,18 +207,18 @@ def plot_checkpoint_tables(evaluate_dir: Path, dataset_name: str, algorithm_name
                 color_values = np.ones_like(ll_diffs)
 
             # Create the heatmap
-            fig, ax = plt.subplots(figsize=(max(10, n_valid_trees * 1.5), max(8, n_checkpoints * 0.5)))
+            fig, ax = plt.subplots(figsize=(max(10, n_valid_trees * 1.5), max(8, n_selected * 0.5)))
 
             im = ax.imshow(color_values, cmap='RdYlGn', aspect='auto', vmin=0, vmax=1)
 
             # Set labels
-            ax.set_yticks(range(n_checkpoints))
-            ax.set_yticklabels([f'Ep {ep}' for ep in episode_nums])
+            ax.set_yticks(range(n_selected))
+            ax.set_yticklabels([f'Ep {ep}' for ep in selected_episode_nums])
             ax.set_xticks(range(n_valid_trees))
             ax.set_xticklabels([f'Tree {i+1}' for i in range(n_valid_trees)], rotation=45, ha='right')
 
             # Add text annotations: "LL\n(step)"
-            for checkpoint_idx in range(n_checkpoints):
+            for checkpoint_idx in range(n_selected):
                 for tree_idx in range(n_valid_trees):
                     ll_val = max_lls[checkpoint_idx, tree_idx]
                     if np.isnan(ll_val):
@@ -212,9 +236,10 @@ def plot_checkpoint_tables(evaluate_dir: Path, dataset_name: str, algorithm_name
             cbar.set_label('Relative to Parsimony LL', rotation=270, labelpad=20)
 
             # Title
+            interval_text = f" (every {checkpoint_interval} checkpoints)" if checkpoint_interval else ""
             ax.set_title(
                 f'{algorithm_name} - Agent {agent_idx} - Sample {sample_idx + 1} - {loops_suffix.replace("_", " ").capitalize()}\n'
-                f'Dataset: {dataset_name} - Parsimony LL: {pars_ll:.1f}\n'
+                f'Dataset: {dataset_name} - Parsimony LL: {pars_ll:.1f}{interval_text}\n'
                 f'Max LL and Steps Across Checkpoints and Starting Trees\n'
                 f'Green = at or above parsimony, Red = furthest below',
                 fontsize=11, pad=15
@@ -230,7 +255,8 @@ def plot_checkpoint_tables(evaluate_dir: Path, dataset_name: str, algorithm_name
             fig.savefig(plot_file, dpi=150, bbox_inches='tight')
             plt.close(fig)
 
-    print(f"Checkpoint tables saved to {plot_dir}")
+    print(
+        f"Checkpoint tables saved to {plot_dir} (showing {len(selected_checkpoint_indices)}/{n_checkpoints} checkpoints)")
 
 
 def evaluate_checkpoints(samples_dir: Path, start_tree_set: str, checkpoints_dir: Path, hidden_dim: int,
