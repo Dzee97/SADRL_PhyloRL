@@ -171,8 +171,8 @@ def plot_final_checkpoint_tables(evaluate_dir: Path, dataset_name: str, algorith
             sample_lls = max_lls[sample_idx]
             pars_ll = pars_lls[sample_idx]
 
-            # Define color range: green at pars_ll, red at 10% below pars_ll
-            red_threshold = pars_ll * 1.1  # 10% below pars_ll (since LL is negative, this is more negative)
+            # Define color range: green at pars_ll, red at 10 below pars_ll
+            red_threshold = pars_ll - 10  # 10 below pars_ll
 
             for tree_idx in range(n_start_trees):
                 ll_val = sample_lls[tree_idx]
@@ -218,7 +218,7 @@ def plot_final_checkpoint_tables(evaluate_dir: Path, dataset_name: str, algorith
         cbar = plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
         cbar.set_label('Performance (per sample)', rotation=270, labelpad=20)
         cbar.set_ticks([0, 0.5, 1.0])
-        cbar.set_ticklabels(['≤10% below Pars', '5% below Pars', '≥Pars LL'])
+        cbar.set_ticklabels(['10 below Pars', '5 below Pars', '≥Pars LL'])
 
         # Title
         final_episode = episode_nums[final_checkpoint_idx]
