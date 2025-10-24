@@ -131,9 +131,10 @@ def plot_over_checkpoints(evaluate_dir: Path, dataset_name: str, algorithm_name:
         print(f"Plot saved to {plot_file}")
 
 
-def plot_checkpoint_heatmaps(evaluate_dir: Path, dataset_name: str, algorithm_name: str, loops_suffix: str):
+def plot_checkpoint_tables(evaluate_dir: Path, dataset_name: str, algorithm_name: str, loops_suffix: str):
     """
-    Create heatmap tables for each checkpoint showing max LL and steps across samples and start trees.
+    Create heatmap tables for each agent and sample showing max LL and steps.
+    Rows = checkpoints, Columns = starting trees.
     Cells are colored based on how close the LL is to the parsimony LL.
     """
     results = np.load(evaluate_dir / "results.npy")
@@ -142,54 +143,37 @@ def plot_checkpoint_heatmaps(evaluate_dir: Path, dataset_name: str, algorithm_na
 
     n_agents, n_samples, n_checkpoints, n_start_trees, n_steps = results.shape
 
-    plot_dir = evaluate_dir / "heatmaps"
+    plot_dir = evaluate_dir / "checkpoint_tables"
     os.makedirs(plot_dir, exist_ok=True)
 
-    # Average across agents for each checkpoint
-    for checkpoint_idx, episode_num in enumerate(episode_nums):
-        checkpoint_results = results[:, :, checkpoint_idx, :, :]  # (n_agents, n_samples, n_start_trees, n_steps)
-
-        # Compute max LL and step index per agent/sample/start_tree
-        max_lls = np.nanmax(checkpoint_results, axis=3)  # (n_agents, n_samples, n_start_trees)
-        argmax_steps = np.nanargmax(checkpoint_results, axis=3)  # same shape
-
-        # Average across agents
-        avg_max_lls = np.nanmean(max_lls, axis=0)  # (n_samples, n_start_trees)
-        avg_argmax_steps = np.nanmean(argmax_steps, axis=0)  # (n_samples, n_start_trees)
-
-        # Create figure with subplots for each sample
-        n_cols = min(3, n_samples)
-        n_rows = int(np.ceil(n_samples / n_cols))
-        fig, axes = plt.subplots(n_rows, n_cols, figsize=(6 * n_cols, 5 * n_rows))
-        if n_samples == 1:
-            axes = np.array([axes])
-        axes = axes.flatten()
-
+    for agent_idx in range(n_agents):
         for sample_idx in range(n_samples):
-            ax = axes[sample_idx]
+            # Get data for this agent and sample
+            agent_sample_results = results[agent_idx, sample_idx, :, :, :]  # (n_checkpoints, n_start_trees, n_steps)
 
-            # Get data for this sample (only valid start trees, no NaN columns)
-            sample_max_lls = avg_max_lls[sample_idx]
-            sample_steps = avg_argmax_steps[sample_idx]
+            # Compute max LL and step index for each checkpoint and start tree
+            max_lls = np.nanmax(agent_sample_results, axis=2)  # (n_checkpoints, n_start_trees)
+            argmax_steps = np.nanargmax(agent_sample_results, axis=2)  # same shape
 
-            # Find valid columns (non-NaN)
-            valid_mask = ~np.isnan(sample_max_lls)
+            # Find valid columns (start trees that have data)
+            valid_mask = ~np.isnan(max_lls[0])  # Check first checkpoint
             n_valid_trees = np.sum(valid_mask)
 
             if n_valid_trees == 0:
-                ax.axis('off')
                 continue
 
-            sample_max_lls = sample_max_lls[valid_mask]
-            sample_steps = sample_steps[valid_mask]
+            # Filter to valid trees only
+            max_lls = max_lls[:, valid_mask]  # (n_checkpoints, n_valid_trees)
+            argmax_steps = argmax_steps[:, valid_mask]
+
             pars_ll = pars_lls[sample_idx]
 
             # Compute color values: normalize by distance to parsimony
             # Green (1.0) if LL >= pars_ll, red (0.0) if LL is far below
-            ll_diffs = sample_max_lls - pars_ll
+            ll_diffs = max_lls - pars_ll
 
-            # Find the minimum LL across all start trees for this sample
-            min_ll_diff = np.min(ll_diffs)
+            # Find the minimum LL across all checkpoints and start trees
+            min_ll_diff = np.nanmin(ll_diffs)
 
             # Normalize: 0 = worst LL, 1 = pars_ll or better
             if min_ll_diff < 0:
@@ -199,46 +183,54 @@ def plot_checkpoint_heatmaps(evaluate_dir: Path, dataset_name: str, algorithm_na
                 color_values = np.ones_like(ll_diffs)
 
             # Create the heatmap
-            # We'll create a 1-row heatmap for this sample
-            data_matrix = color_values.reshape(1, -1)
+            fig, ax = plt.subplots(figsize=(max(10, n_valid_trees * 1.5), max(8, n_checkpoints * 0.5)))
 
-            im = ax.imshow(data_matrix, cmap='RdYlGn', aspect='auto', vmin=0, vmax=1)
+            im = ax.imshow(color_values, cmap='RdYlGn', aspect='auto', vmin=0, vmax=1)
 
             # Set labels
-            ax.set_yticks([0])
-            ax.set_yticklabels([f'Sample {sample_idx + 1}'])
+            ax.set_yticks(range(n_checkpoints))
+            ax.set_yticklabels([f'Ep {ep}' for ep in episode_nums])
             ax.set_xticks(range(n_valid_trees))
             ax.set_xticklabels([f'Tree {i+1}' for i in range(n_valid_trees)], rotation=45, ha='right')
 
-            # Add text annotations: "LL\nstep"
-            for tree_idx in range(n_valid_trees):
-                ll_val = sample_max_lls[tree_idx]
-                step_val = int(sample_steps[tree_idx])
-                text_color = 'white' if color_values[tree_idx] < 0.5 else 'black'
-                ax.text(tree_idx, 0, f'{ll_val:.1f}\n(step {step_val})',
-                        ha='center', va='center', color=text_color, fontsize=9)
+            # Add text annotations: "LL\n(step)"
+            for checkpoint_idx in range(n_checkpoints):
+                for tree_idx in range(n_valid_trees):
+                    ll_val = max_lls[checkpoint_idx, tree_idx]
+                    if np.isnan(ll_val):
+                        continue
 
-            # Add parsimony baseline as title
-            ax.set_title(f'Pars LL: {pars_ll:.1f}', fontsize=10)
+                    step_val = int(argmax_steps[checkpoint_idx, tree_idx])
+                    color_val = color_values[checkpoint_idx, tree_idx]
+                    text_color = 'white' if color_val < 0.5 else 'black'
 
-        # Hide unused subplots
-        for idx in range(n_samples, len(axes)):
-            axes[idx].axis('off')
+                    ax.text(tree_idx, checkpoint_idx, f'{ll_val:.1f}\n(step {step_val})',
+                            ha='center', va='center', color=text_color, fontsize=8)
 
-        # Overall title
-        fig.suptitle(
-            f'{algorithm_name} - Episode {episode_num} - {loops_suffix.replace("_", " ").capitalize()}\n'
-            f'Dataset: {dataset_name} - Max LL and Steps (averaged over agents)',
-            fontsize=14, y=0.98
-        )
+            # Add colorbar
+            cbar = plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+            cbar.set_label('Relative to Parsimony LL', rotation=270, labelpad=20)
 
-        fig.tight_layout(rect=[0, 0, 1, 0.96])
+            # Title
+            ax.set_title(
+                f'{algorithm_name} - Agent {agent_idx} - Sample {sample_idx + 1} - {loops_suffix.replace("_", " ").capitalize()}\n'
+                f'Dataset: {dataset_name} - Parsimony LL: {pars_ll:.1f}\n'
+                f'Max LL and Steps Across Checkpoints and Starting Trees\n'
+                f'Green = at or above parsimony, Red = furthest below',
+                fontsize=11, pad=15
+            )
 
-        # Save
-        plot_file = plot_dir / f"checkpoint_ep{episode_num}.png"
-        fig.savefig(plot_file, dpi=150, bbox_inches='tight')
-        plt.close(fig)
-        print(f"Heatmap saved to {plot_file}")
+            ax.set_xlabel('Starting Tree', fontsize=10)
+            ax.set_ylabel('Checkpoint (Episode)', fontsize=10)
+
+            plt.tight_layout()
+
+            # Save
+            plot_file = plot_dir / f"agent{agent_idx}_sample{sample_idx+1}.png"
+            fig.savefig(plot_file, dpi=150, bbox_inches='tight')
+            plt.close(fig)
+
+    print(f"Checkpoint tables saved to {plot_dir}")
 
 
 def evaluate_checkpoints(samples_dir: Path, start_tree_set: str, checkpoints_dir: Path, hidden_dim: int,
