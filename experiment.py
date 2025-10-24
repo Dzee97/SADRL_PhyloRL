@@ -6,7 +6,7 @@ from sample_datasets import sample_dataset
 from train_multi_agents import run_parallel_training
 from rainbow_train_multi_agents import rainbow_run_parallel_training
 from soft_train_multi_agents import soft_run_parallel_training
-from evaluation import evaluate_checkpoints, plot_over_checkpoints
+from evaluation import evaluate_checkpoints, plot_over_checkpoints, plot_checkpoint_heatmaps
 
 
 # === CONFIGURATION ===
@@ -41,7 +41,7 @@ EXPERIMENTS = {
     "ValidationSet": dict(num_samples=20, num_rand_train_trees=0, num_rand_test_trees=10),
 }
 
-# Set number of cores for parallel agent training
+# Set number of cores for parallel agent training and evaluation
 n_cores = 5
 
 # Training parameters (shared)
@@ -102,7 +102,7 @@ evaluate_cfg = dict(
     hidden_dim=train_common["hidden_dim"],
     raxmlng_path=raxmlng_path,
     horizon=train_common["horizon"],
-    forbid_loops=True,
+    n_jobs=n_cores,
 )
 
 
@@ -207,6 +207,8 @@ def run_evaluation(eval_dqn, eval_rainbow, eval_soft, set_type="test"):
                     )
                     plot_over_checkpoints(evaluate_dir=evaluate_dir, dataset_name=name,
                                           algorithm_name="Soft Q-Learning", loops_suffix=loops_suffix)
+                    plot_checkpoint_heatmaps(evaluate_dir=evaluate_dir, dataset_name=name,
+                                             algorithm_name="Soft Q-Learning", loops_suffix=loops_suffix)
 
 
 def run_plotting(plot_dqn, plot_rainbow, plot_soft):
