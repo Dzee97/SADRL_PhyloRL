@@ -190,13 +190,13 @@ def plot_final_checkpoint_tables(evaluate_dir: Path, dataset_name: str, algorith
                     color_values[sample_idx, tree_idx] = (ll_val - red_threshold) / (pars_ll - red_threshold)
 
         # Create the heatmap
-        fig, ax = plt.subplots(figsize=(max(10, n_start_trees * 1.5), max(8, n_samples * 0.8)))
+        fig, ax = plt.subplots(figsize=(10, max(n_samples * 0.5)))
 
         im = ax.imshow(color_values, cmap='RdYlGn', aspect='auto', vmin=0, vmax=1)
 
         # Set labels
         ax.set_yticks(range(n_samples))
-        ax.set_yticklabels([f'Sample {i+1}\n(Pars: {pars_lls[i]:.1f})' for i in range(n_samples)])
+        ax.set_yticklabels([f'Sample {i+1} (Pars: {pars_lls[i]:.1f})' for i in range(n_samples)])
         ax.set_xticks(range(n_start_trees))
         ax.set_xticklabels([f'Tree {i+1}' for i in range(n_start_trees)], rotation=45, ha='right')
 
