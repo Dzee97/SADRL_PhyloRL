@@ -6,7 +6,7 @@ from sample_datasets import sample_dataset
 from train_multi_agents import run_parallel_training
 from rainbow_train_multi_agents import rainbow_run_parallel_training
 from soft_train_multi_agents import soft_run_parallel_training
-from evaluation import evaluate_checkpoints, plot_over_checkpoints, plot_per_agent
+from evaluation import evaluate_checkpoints, plot_over_checkpoints, plot_final_checkpoint_tables
 
 
 # === CONFIGURATION ===
@@ -206,8 +206,8 @@ def run_evaluation(eval_dqn, eval_rainbow, eval_soft, set_type="test"):
                     )
                     plot_over_checkpoints(evaluate_dir=evaluate_dir, dataset_name=name,
                                           algorithm_name="Soft Q-Learning", loops_suffix=loops_suffix)
-                    plot_per_agent(evaluate_dir=evaluate_dir, dataset_name=name,
-                                   algorithm_name="Soft Q-Learning", loops_suffix=loops_suffix)
+                    plot_final_checkpoint_tables(evaluate_dir=evaluate_dir, dataset_name=name,
+                                                 algorithm_name="Soft Q-Learning", loops_suffix=loops_suffix)
 
 
 def run_plotting(plot_dqn, plot_rainbow, plot_soft):
