@@ -169,7 +169,7 @@ def plot_per_agent(evaluate_dir: Path, dataset_name: str, algorithm_name: str, l
             episode_max = np.nanmax(agent_results, axis=(1, 2))  # (n_checkpoints,)
 
             # Count how many start trees reached ≥ parsimony LL
-            reached_counts = np.sum(np.nanmax(agent_results, axis=2) >= pars_ll, axis=1)
+            reached_counts = np.sum(np.nanmax(agent_results, axis=2) >= pars_ll - 0.1, axis=1)
             reached_counts = np.clip(reached_counts, 0, 10)  # cap at 10 for color scale
 
             # --- Plot ---
