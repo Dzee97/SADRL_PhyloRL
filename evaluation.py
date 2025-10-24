@@ -172,7 +172,7 @@ def plot_final_checkpoint_tables(evaluate_dir: Path, dataset_name: str, algorith
             pars_ll = pars_lls[sample_idx]
 
             # Define color range: green at pars_ll, red at 10% below pars_ll
-            red_threshold = pars_ll * 0.9  # 10% below pars_ll (since LL is negative, this is more negative)
+            red_threshold = pars_ll * 1.1  # 10% below pars_ll (since LL is negative, this is more negative)
 
             for tree_idx in range(n_start_trees):
                 ll_val = sample_lls[tree_idx]
