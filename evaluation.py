@@ -190,7 +190,7 @@ def plot_final_checkpoint_tables(evaluate_dir: Path, dataset_name: str, algorith
                     color_values[sample_idx, tree_idx] = (ll_val - red_threshold) / (pars_ll - red_threshold)
 
         # Create the heatmap
-        fig, ax = plt.subplots(figsize=(10, max(n_samples * 0.5)))
+        fig, ax = plt.subplots(figsize=(10, n_samples * 0.5))
 
         im = ax.imshow(color_values, cmap='RdYlGn', aspect='auto', vmin=0, vmax=1)
 
