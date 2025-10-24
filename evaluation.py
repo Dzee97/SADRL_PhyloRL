@@ -138,7 +138,8 @@ def plot_per_agent(evaluate_dir: Path, dataset_name: str, algorithm_name: str, l
     Each agent gets its own plot.
     For each episode:
       - The line shows the highest LL found in any step across all starting trees.
-      - Colored markers indicate how many starting trees reached ≥ parsimony LL.
+      - Marker color shows how many starting trees reached ≥ parsimony LL:
+        0 = red, 1–10 = light→dark green.
     """
     results = np.load(evaluate_dir / "results.npy")
     pars_lls = np.load(evaluate_dir / "pars_lls.npy")
@@ -148,8 +149,14 @@ def plot_per_agent(evaluate_dir: Path, dataset_name: str, algorithm_name: str, l
     plot_dir = evaluate_dir / "plots_per_agent"
     os.makedirs(plot_dir, exist_ok=True)
 
-    # Define colormap for marker color by number of trees reaching pars_ll
-    cmap = plt.cm.viridis
+    # Create a discrete color map: 0 = red, 1–10 = greens
+    from matplotlib.colors import ListedColormap, BoundaryNorm
+
+    greens = plt.cm.Greens(np.linspace(0.3, 1.0, 10))  # 10 shades of green
+    colors = np.vstack(([plt.cm.Reds(0.8)], greens))   # prepend red for 0
+    cmap = ListedColormap(colors)
+    bounds = np.arange(-0.5, 11.5, 1)
+    norm = BoundaryNorm(bounds, cmap.N)
 
     for sample_idx in range(n_samples):
         sample_results = results[:, sample_idx]  # (n_agents, n_checkpoints, n_start_trees, n_steps)
@@ -159,20 +166,20 @@ def plot_per_agent(evaluate_dir: Path, dataset_name: str, algorithm_name: str, l
             agent_results = sample_results[a]  # (n_checkpoints, n_start_trees, n_steps)
 
             # Highest LL per episode across *all start trees and steps*
-            episode_max = np.nanmax(agent_results, axis=(1, 2))  # shape: (n_checkpoints,)
+            episode_max = np.nanmax(agent_results, axis=(1, 2))  # (n_checkpoints,)
 
             # Count how many start trees reached ≥ parsimony LL
             reached_counts = np.sum(np.nanmax(agent_results, axis=2) >= pars_ll, axis=1)
-            frac_reached = reached_counts / n_start_trees  # for color scaling
+            reached_counts = np.clip(reached_counts, 0, 10)  # cap at 10 for color scale
 
             # --- Plot ---
             fig, ax = plt.subplots(figsize=(8, 5))
             ax.plot(episode_nums, episode_max, color="tab:red", linewidth=2.0, label="Highest LL per episode")
 
-            # Add colored markers (scaled by number of trees reaching ≥ pars_ll)
+            # Add discrete colored markers
             scatter = ax.scatter(
-                episode_nums, episode_max, c=frac_reached, cmap=cmap, s=70, edgecolors="black",
-                vmin=0, vmax=1, label="Fraction ≥ pars LL"
+                episode_nums, episode_max, c=reached_counts, cmap=cmap, norm=norm,
+                s=70, edgecolors="black", label="Start trees ≥ pars LL"
             )
 
             ax.axhline(y=pars_ll, color="gray", linestyle="--", linewidth=1.5, label="Parsimony LL")
@@ -185,9 +192,10 @@ def plot_per_agent(evaluate_dir: Path, dataset_name: str, algorithm_name: str, l
             ax.grid(alpha=0.3)
             ax.legend(loc="lower left", fontsize=9)
 
-            # Colorbar to show fraction meaning
-            cbar = plt.colorbar(scatter, ax=ax)
-            cbar.set_label("Fraction of start trees ≥ pars LL")
+            # Add discrete colorbar
+            cbar = plt.colorbar(scatter, ax=ax, ticks=np.arange(0, 11))
+            cbar.ax.set_yticklabels([str(i) for i in range(0, 11)])
+            cbar.set_label("Number of start trees ≥ pars LL")
 
             fig.tight_layout()
             plot_file = plot_dir / f"sample{sample_idx+1}_agent{a+1}.png"
