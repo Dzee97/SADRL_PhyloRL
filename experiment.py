@@ -35,7 +35,6 @@ sampling_cfg = dict(
 # Experiment sets
 EXPERIMENTS = {
     "Samples1Train100Test10": dict(num_samples=1, num_rand_train_trees=100, num_rand_test_trees=10),
-    # "Samples10Train100Test10": dict(num_samples=10, num_rand_train_trees=100, num_rand_test_trees=10),
     "Samples20Train100Test10": dict(num_samples=20, num_rand_train_trees=100, num_rand_test_trees=10),
     # Validation dataset
     "ValidationSet": dict(num_samples=20, num_rand_train_trees=0, num_rand_test_trees=10),
