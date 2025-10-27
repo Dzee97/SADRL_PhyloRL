@@ -50,13 +50,9 @@ class ReplayBuffer:
 
 
 class DQNAgent:
-    def __init__(self, feature_dim, hidden_dim, learning_rate, gamma, epsilon_start, epsilon_end, epsilon_decay,
-                 tau, replay_size, device=None):
+    def __init__(self, feature_dim, hidden_dim, learning_rate, gamma, tau, replay_size, device=None):
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
         self.gamma = gamma
-        self.epsilon_start = epsilon_start
-        self.epsilon_end = epsilon_end
-        self.epsilon_decay = epsilon_decay
         self.tau = tau
         self.step_count = 0
 

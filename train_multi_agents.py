@@ -1,7 +1,6 @@
 import os
 import shutil
 import torch
-import numpy as np
 from joblib import Parallel, delayed
 from pathlib import Path
 from environment import PhyloEnv
@@ -10,7 +9,7 @@ from dqn_agent import DQNAgent
 
 def train_agent_process(agent_id, samples_dir, raxmlng_path, episodes, horizon, checkpoint_dir,
                         checkpoint_freq, update_freq, hidden_dim, replay_size, min_replay_start, learning_rate,
-                        gamma, epsilon_start, epsilon_end, epsilon_decay, tau, batch_size):
+                        gamma, temp, tau, batch_size):
     torch.set_num_threads(1)
 
     # Create environment for this process
@@ -23,9 +22,6 @@ def train_agent_process(agent_id, samples_dir, raxmlng_path, episodes, horizon, 
                      hidden_dim=hidden_dim,
                      learning_rate=learning_rate,
                      gamma=gamma,
-                     epsilon_start=epsilon_start,
-                     epsilon_end=epsilon_end,
-                     epsilon_decay=epsilon_decay,
                      tau=tau,
                      replay_size=replay_size)
 
@@ -37,11 +33,10 @@ def train_agent_process(agent_id, samples_dir, raxmlng_path, episodes, horizon, 
         current_return = 0.0
         highest_return = 0.0
         trees_visited = {tree_hash}
-        q_loss = np.nan
         done = False
 
         while not done:
-            action_idx, eps = agent.select_action(feats)
+            action_idx = agent.select_action(feats, temp)
             feat_vec = feats[action_idx]
             next_tree_hash, next_feats, reward, done = env.step(action_idx)
 
@@ -54,7 +49,7 @@ def train_agent_process(agent_id, samples_dir, raxmlng_path, episodes, horizon, 
             # Update less frequently
             step_counter += 1
             if step_counter % update_freq == 0 and len(agent.replay) >= min_replay_start:
-                q_loss = agent.update(batch_size)
+                agent.update(batch_size)
 
             current_return += reward
             highest_return = max(highest_return, current_return)
