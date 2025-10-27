@@ -67,18 +67,18 @@ class DQNAgent:
         self.optimizer = optim.Adam(self.q_net.parameters(), lr=learning_rate)
         self.replay = ReplayBuffer(replay_size)
 
-    def select_action(self, feats):
-        eps = self.epsilon_end + (self.epsilon_start - self.epsilon_end) * \
-            np.exp(-1.0 * self.step_count / self.epsilon_decay)
-        self.step_count += 1
+    def select_action(self, state_action_feats, temp, eval_mode=False):
+        with torch.no_grad():
+            feats_t = torch.tensor(state_action_feats, dtype=torch.float32, device=self.device)
+            q_values = self.q1(feats_t).squeeze(-1)  # shape [num_actions]
 
-        if random.random() < eps:
-            return random.randrange(len(feats)), eps
-        else:
-            with torch.no_grad():
-                x = torch.tensor(feats, dtype=torch.float32, device=self.device)
-                q_vals = self.q_net(x)
-                return int(torch.argmax(q_vals).item()), eps
+            if eval_mode:
+                action = torch.argmax(q_values).item()
+            else:
+                probs = torch.softmax(q_values / temp, dim=0)
+                action = torch.multinomial(probs, 1).item()
+
+            return action
 
     def update(self, batch_size):
         if len(self.replay) < batch_size:

@@ -35,8 +35,8 @@ sampling_cfg = dict(
 # Experiment sets
 EXPERIMENTS = {
     "Samples1Train100Test10": dict(num_samples=1, num_rand_train_trees=100, num_rand_test_trees=10),
-    "Samples20Train100Test10": dict(num_samples=20, num_rand_train_trees=100, num_rand_test_trees=10),
-    "Samples100Train100Test10": dict(num_samples=100, num_rand_train_trees=100, num_rand_test_trees=10),
+    # "Samples20Train100Test10": dict(num_samples=20, num_rand_train_trees=100, num_rand_test_trees=10),
+    # "Samples100Train100Test10": dict(num_samples=100, num_rand_train_trees=100, num_rand_test_trees=10),
     # Validation dataset
     "ValidationSet": dict(num_samples=20, num_rand_train_trees=0, num_rand_test_trees=10),
 }
@@ -60,11 +60,9 @@ train_common = dict(
     tau=0.005
 )
 
-# DQN epsilon-based agent parameters
+# DQN Boltzmann-based agent parameters
 dqn_cfg = dict(
-    epsilon_start=1.0,
-    epsilon_end=0.05,
-    epsilon_decay=10_000,
+    temp=1.0,
 )
 
 # Rainbow DQN agent parameters

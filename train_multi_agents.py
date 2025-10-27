@@ -75,7 +75,7 @@ def train_agent_process(agent_id, samples_dir, raxmlng_path, episodes, horizon, 
 
 def run_parallel_training(samples_dir, raxmlng_path, episodes, horizon, n_agents, n_cores, checkpoint_dir,
                           checkpoint_freq, update_freq, hidden_dim, replay_size, learning_rate, gamma,
-                          epsilon_start, epsilon_end, epsilon_decay, tau, batch_size):
+                          temp, tau, batch_size):
 
     # ---- Check for existing checkpoint directory ----
     if checkpoint_dir.exists():
@@ -109,9 +109,7 @@ def run_parallel_training(samples_dir, raxmlng_path, episodes, horizon, n_agents
                                      replay_size=replay_size,
                                      learning_rate=learning_rate,
                                      gamma=gamma,
-                                     epsilon_start=epsilon_start,
-                                     epsilon_end=epsilon_end,
-                                     epsilon_decay=epsilon_decay,
+                                     temp=temp,
                                      tau=tau)
         for agent_id in range(n_agents)
     )
