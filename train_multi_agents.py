@@ -38,7 +38,6 @@ def train_agent_process(agent_id, samples_dir, raxmlng_path, episodes, horizon, 
         highest_return = 0.0
         trees_visited = {tree_hash}
         q_loss = np.nan
-        total_reward = 0.0
         done = False
 
         while not done:
@@ -65,6 +64,7 @@ def train_agent_process(agent_id, samples_dir, raxmlng_path, episodes, horizon, 
         if (ep + 1) % 10 == 0:
             print(f"[Agent {agent_id}] Ep {ep+1}/{episodes} | "
                   f"Return: {current_return:.3f} | Highest Return: {highest_return:.3f} | "
+                  f"Pars Return: {pars_return:.3f} | "
                   f"Trees visited: {len(trees_visited)} | Cache hits: {env.cache_hits} | "
                   f"Cache size: {len(env.tree_cache)}")
 
