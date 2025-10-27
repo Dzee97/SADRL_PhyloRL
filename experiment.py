@@ -239,9 +239,9 @@ if __name__ == "__main__":
     RUN_PLOTTING = True
 
     # toggle these flags to control which algorithms to run
-    DQN = False
+    DQN = True
     RAINBOW = False
-    SOFT = True
+    SOFT = False
 
     if RUN_SAMPLING:
         run_sampling()
