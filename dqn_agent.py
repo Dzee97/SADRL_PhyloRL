@@ -66,7 +66,7 @@ class DQNAgent:
     def select_action(self, state_action_feats, temp, eval_mode=False):
         with torch.no_grad():
             feats_t = torch.tensor(state_action_feats, dtype=torch.float32, device=self.device)
-            q_values = self.q1(feats_t).squeeze(-1)  # shape [num_actions]
+            q_values = self.q_net(feats_t).squeeze(-1)  # shape [num_actions]
 
             if eval_mode:
                 action = torch.argmax(q_values).item()
