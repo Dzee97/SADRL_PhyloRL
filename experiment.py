@@ -24,7 +24,6 @@ input_fasta = DATASETS_DIR / "051_856_p__Basidiomycota_c__Agaricomycetes_o__Russ
 # Sampling parameters
 sampling_cfg = dict(
     input_fasta=input_fasta,
-    sample_size=7,
     num_pars_trees=10,
     num_bootstrap=10_000,
     evo_model="GTR+I+G",
@@ -34,11 +33,17 @@ sampling_cfg = dict(
 
 # Experiment sets
 EXPERIMENTS = {
-    "Samples1Train100Test10": dict(num_samples=1, num_rand_train_trees=100, num_rand_test_trees=10),
-    "Samples20Train100Test10": dict(num_samples=20, num_rand_train_trees=100, num_rand_test_trees=10),
-    "Samples100Train100Test10": dict(num_samples=100, num_rand_train_trees=100, num_rand_test_trees=10),
-    # Validation dataset
-    "ValidationSet": dict(num_samples=20, num_rand_train_trees=0, num_rand_test_trees=10),
+    # Sample size 7
+    # "Size7Samples1Train100Test10": dict(sample_size=7, num_samples=1,
+    #                                    num_rand_train_trees=100, num_rand_test_trees=10),
+    # "Size7Samples20Train100Test10": dict(sample_size=7, num_samples=20,
+    #                                     num_rand_train_trees=100, num_rand_test_trees=10),
+    # "Size7Samples100Train100Test10": dict(sample_size=9, num_samples=100,
+    #                                      num_rand_train_trees=100, num_rand_test_trees=10),
+    # "Size7ValidationSet": dict(sample_size=7, num_samples=20, num_rand_train_trees=0, num_rand_test_trees=10),
+    # Sample size 9
+    "Size9Samples1Train100Test10": dict(sample_size=9, num_samples=1,
+                                        num_rand_train_trees=100, num_rand_test_trees=10),
 }
 
 # Set number of cores for parallel agent training and evaluation
@@ -241,7 +246,7 @@ if __name__ == "__main__":
     # toggle these flags to control which algorithms to run
     DQN = True
     RAINBOW = False
-    SOFT = False
+    SOFT = True
 
     if RUN_SAMPLING:
         run_sampling()
