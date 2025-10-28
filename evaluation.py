@@ -91,6 +91,7 @@ def plot_over_checkpoints(evaluate_dir: Path, dataset_name: str, algorithm_name:
 
         # Parsimony baseline
         ax1.axhline(y=pars_lls[sample_idx], color='gray', linestyle="--", linewidth=1.5, label="Parsimony LL")
+        ax1.set_ylim((pars_lls[sample_idx] - 10, pars_lls[sample_idx] + 5))
 
         ax1.tick_params(axis='y', labelcolor=color)
         ax1.legend(loc='lower left', fontsize=9)
