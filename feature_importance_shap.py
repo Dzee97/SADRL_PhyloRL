@@ -576,7 +576,7 @@ if __name__ == "__main__":
         feature_names=feature_names,
         hidden_dim=256,
         n_background=100,  # Start small, increase if needed
-        n_test=500,
+        n_test=1000,
         shap_method="deep",  # "kernel", "deep", "gradient", or "sampling"
         output_dir=output_dir,
         compare_with_permutation=False  # Set to False to skip permutation (faster)
