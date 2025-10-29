@@ -311,7 +311,7 @@ def evaluate_checkpoints(samples_dir: Path, start_tree_set: str, checkpoints_dir
             print(f"[Agent {agent_num}] → Checkpoint {checkpoint_idx+1}/{n_checkpoints} (episode {episode_num})")
 
             state_dict = torch.load(checkpoint_file, map_location="cpu")
-            agent = EvalAgent(feature_dim, hidden_dim, state_dict, device="cpu")
+            agent = EvalAgent(feature_dim, hidden_dim, state_dict)
 
             for sample_idx in range(num_samples):
                 for start_tree_idx in range(num_start_trees[sample_idx]):
