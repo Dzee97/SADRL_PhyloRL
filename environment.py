@@ -28,19 +28,29 @@ class PhyloEnv:
                 "msa": sample_dir / "sample_aln.fasta",
                 "rand_train_trees": sample_dir / "raxml_rand_train.raxml.startTree",
                 "rand_test_trees": sample_dir / "raxml_rand_test.raxml.startTree",
+                "rand_test_trees_ml": sample_dir / "raxml_rand_test_ml.raxml.log",
                 "pars_model": sample_dir / "raxml_eval_pars.raxml.bestModel",
                 "pars_log": sample_dir / "raxml_eval_pars.raxml.log",
                 "split_support_upgma": sample_dir / "split_support_upgma.pkl",
                 "split_support_nj": sample_dir / "split_support_nj.pkl"
             }
-            # Extract individual newick trees from ranfom trees files
+            # Extract individual newick trees from random trees files
             with open(sample["rand_train_trees"]) as f:
                 sample["rand_train_trees_list"] = [line for line in f]
                 self.num_train_start_trees.append(len(sample["rand_train_trees_list"]))
             with open(sample["rand_test_trees"]) as f:
                 sample["rand_test_trees_list"] = [line for line in f]
                 self.num_test_start_trees.append(len(sample["rand_test_trees_list"]))
-            # Extract normalization likelihood from log
+            # Extract RAxML-NG search results for random test trees
+            with open(sample["rand_test_trees_ml"]):
+                rand_test_trees_ml_list = []
+                for line in f:
+                    if "ML tree search #" in line:
+                        rand_test_trees_ml_list.append(float(line.strip().split()[-1]))
+                    if line.startswith("Final LogLikelihood:"):
+                        sample["rand_test_trees_ml_best"] = float(line.strip().split()[-1])
+                sample["rand_test_trees_ml_list"] = rand_test_trees_ml_list
+            # Extract parimony normalization likelihood from log
             with open(sample["pars_log"]) as f:
                 for line in f:
                     if line.startswith("Final LogLikelihood:"):

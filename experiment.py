@@ -202,7 +202,7 @@ if __name__ == "__main__":
     RUN_EVALUATION = True
 
     # toggle these flags to control which algorithms to run
-    DQN = True
+    DQN = False
     SOFT = True
 
     if RUN_SAMPLING:

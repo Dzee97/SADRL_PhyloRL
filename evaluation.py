@@ -8,7 +8,6 @@ import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
 from pathlib import Path
 from environment import PhyloEnv
-# from dqn_agent import QNetwork
 from soft_dqn_agent import QNetwork
 
 
@@ -41,7 +40,8 @@ def plot_over_checkpoints(evaluate_dir: Path, dataset_name: str, algorithm_name:
     and the average step at which the highest LL was reached on the secondary axis.
     """
     results = np.load(evaluate_dir / "results.npy")
-    pars_lls = np.load(evaluate_dir / "pars_lls.npy")
+    # pars_lls = np.load(evaluate_dir / "pars_lls.npy")
+    test_mls_best = np.load(evaluate_dir / "test_mls_best.npy")
     episode_nums = np.load(evaluate_dir / "episode_nums.npy")
 
     n_agents, n_samples, n_checkpoints, n_start_trees, n_steps = results.shape
@@ -90,7 +90,7 @@ def plot_over_checkpoints(evaluate_dir: Path, dataset_name: str, algorithm_name:
                          alpha=0.2, color=color, label="95% CI")
 
         # Parsimony baseline
-        ax1.axhline(y=pars_lls[sample_idx], color='gray', linestyle="--", linewidth=1.5, label="Parsimony LL")
+        ax1.axhline(y=test_mls_best[sample_idx], color='gray', linestyle="--", linewidth=1.5, label="RAxML-NG LL")
 
         ax1.tick_params(axis='y', labelcolor=color)
         ax1.legend(loc='lower left', fontsize=9)
@@ -139,7 +139,9 @@ def plot_final_checkpoint_tables(evaluate_dir: Path, dataset_name: str, algorith
     Each row has independent color scaling: green at/above pars LL, red at 10% below pars LL.
     """
     results = np.load(evaluate_dir / "results.npy")
-    pars_lls = np.load(evaluate_dir / "pars_lls.npy")
+    # pars_lls = np.load(evaluate_dir / "pars_lls.npy")
+    test_mls_all = np.load(evaluate_dir / "test_mls_all.npy")
+    test_mls_best = np.load(evaluate_dir / "test_mls_best.npy")
     episode_nums = np.load(evaluate_dir / "episode_nums.npy")
 
     n_agents, n_samples, n_checkpoints, n_start_trees, n_steps = results.shape
@@ -169,17 +171,18 @@ def plot_final_checkpoint_tables(evaluate_dir: Path, dataset_name: str, algorith
 
         for sample_idx in range(n_samples):
             sample_lls = max_lls[sample_idx]
-            pars_ll = pars_lls[sample_idx]
-
-            # Define color range: green at pars_ll, red at 10 below pars_ll
-            red_threshold = pars_ll - 10  # 10 below pars_ll
 
             for tree_idx in range(n_start_trees):
                 ll_val = sample_lls[tree_idx]
+                ml_val = test_mls_all[sample_idx, tree_idx]
+
+                # Define color range: green at ml_ll, red at 10 below ml_ll
+                red_threshold = ml_val - 10  # 10 below pars_ll
+
                 if np.isnan(ll_val):
                     continue
 
-                if ll_val >= pars_ll:
+                if ll_val >= ml_val:
                     # At or above parsimony: full green
                     color_values[sample_idx, tree_idx] = 1.0
                 elif ll_val <= red_threshold:
@@ -187,7 +190,7 @@ def plot_final_checkpoint_tables(evaluate_dir: Path, dataset_name: str, algorith
                     color_values[sample_idx, tree_idx] = 0.0
                 else:
                     # Linear interpolation between red (0) and green (1)
-                    color_values[sample_idx, tree_idx] = (ll_val - red_threshold) / (pars_ll - red_threshold)
+                    color_values[sample_idx, tree_idx] = (ll_val - red_threshold) / (ml_val - red_threshold)
 
         # Create the heatmap
         fig, ax = plt.subplots(figsize=(max(10, n_start_trees), max(8, n_samples * 0.5)))
@@ -196,7 +199,7 @@ def plot_final_checkpoint_tables(evaluate_dir: Path, dataset_name: str, algorith
 
         # Set labels
         ax.set_yticks(range(n_samples))
-        ax.set_yticklabels([f'Sample {i+1} (Pars: {pars_lls[i]:.1f})' for i in range(n_samples)])
+        ax.set_yticklabels([f'Sample {i+1} (RAxML-NG: {test_mls_best[i]:.1f})' for i in range(n_samples)])
         ax.set_xticks(range(n_start_trees))
         ax.set_xticklabels([f'Tree {i+1}' for i in range(n_start_trees)], rotation=45, ha='right')
 
@@ -218,15 +221,14 @@ def plot_final_checkpoint_tables(evaluate_dir: Path, dataset_name: str, algorith
         cbar = plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
         cbar.set_label('Performance (per sample)', rotation=270, labelpad=20)
         cbar.set_ticks([0, 0.5, 1.0])
-        cbar.set_ticklabels(['10 below Pars', '5 below Pars', '≥Pars LL'])
+        cbar.set_ticklabels(['10 below RAxML-NG', '5 below RAxML-NG', '≥RAxML-NG LL'])
 
         # Title
         final_episode = episode_nums[final_checkpoint_idx]
         ax.set_title(
             f'{algorithm_name} - Agent {agent_idx} - Final Checkpoint (Episode {final_episode}) - '
             f'Dataset: {dataset_name}\n'
-            f'Max LL and Steps Across Samples and Starting Trees\n'
-            f'Green = at/above parsimony, Red = 10%+ below parsimony (per-row scaling)',
+            f'Max LL and Steps Across Samples and Starting Trees',
             fontsize=11, pad=15
         )
 
@@ -290,6 +292,8 @@ def evaluate_checkpoints(samples_dir: Path, start_tree_set: str, checkpoints_dir
 
     results = np.full((n_agents, num_samples, n_checkpoints, max_num_start_trees, horizon + 1), np.nan)
     pars_lls = np.array([base_env.samples[i]["pars_ll"] for i in range(num_samples)])
+    test_mls_all = np.array([base_env.samples[i]["rand_test_trees_ml_list"] for i in range(num_samples)])
+    test_mls_best = np.array([base_env.samples[i]["rand_test_trees_ml_best"] for i in range(num_samples)])
 
     # ---- Worker function (evaluates one agent across all checkpoints) ----
     def eval_single_agent(agent_idx, agent_num):
@@ -348,88 +352,7 @@ def evaluate_checkpoints(samples_dir: Path, start_tree_set: str, checkpoints_dir
     # ---- Save outputs ----
     np.save(evaluate_dir / "results.npy", results)
     np.save(evaluate_dir / "pars_lls.npy", pars_lls)
+    np.save(evaluate_dir / "test_mls_all.npy", test_mls_all)
+    np.save(evaluate_dir / "test_mls_best.npy", test_mls_best)
     np.save(evaluate_dir / "episode_nums.npy", episode_nums)
     print(f"✅ Evaluation completed and saved to {evaluate_dir}")
-
-
-# def evaluate_agents(samples_dir, checkpoints_dir, raxml_path, horizon, n_agents=5, plot_dir="plots"):
-#     """
-#     Evaluate multiple trained agents on each starting tree and plot average log-likelihoods.
-
-#     Args:
-#         samples_dir (str): Parent directory with sample datasets.
-#         checkpoints_dir (str): Directory containing agent_i_final.pt files.
-#         raxml_path (str): Path to RAxML-NG binary.
-#         horizon (int): Max steps per episode.
-#         n_agents (int): Number of agents to evaluate.
-#         plot_dir (str): Directory where plots will be saved.
-#     """
-#     samples_dir = Path(samples_dir)
-#     checkpoints_dir = Path(checkpoints_dir)
-#     plot_dir = Path(plot_dir)
-#     plot_dir.mkdir(exist_ok=True, parents=True)
-
-#     # Initialize environment (shared)
-#     env = PhyloEnv(samples_dir, Path(raxml_path), horizon=horizon)
-#     feats = env.reset()
-#     feature_dim = feats.shape[1]
-#     num_samples = len(env.samples)
-
-#     # Load all agents
-#     agents = []
-#     for i in range(n_agents):
-#         ckpt_path = checkpoints_dir / f"agent_{i}_final.pt"
-#         if not ckpt_path.exists():
-#             raise FileNotFoundError(f"Missing checkpoint: {ckpt_path}")
-#         print(f"Loading agent {i} from {ckpt_path}")
-#         state_dict = torch.load(ckpt_path, map_location="cpu")
-#         agents.append(EvalAgent(feature_dim, state_dict))
-
-#     # Evaluate all agents on each starting tree
-#     for sample_idx in range(num_samples):
-#         pars_ll = env.samples[sample_idx]["pars_ll"]
-#         num_start_trees = len(env.samples[sample_idx]["rand_trees_list"])
-#         print(f"Evaluating sample {sample_idx}, start tree {start_idx}")
-#         for start_idx in range(num_start_trees):
-#             all_agent_lls = []
-
-#             # Run each agent
-#             for agent in agents:
-#                 feats = env.reset(sample_num=sample_idx, start_tree_num=start_idx)
-#                 ep_lls = [env.current_ll]
-#                 done = False
-
-#                 while not done:
-#                     action_idx = agent.select_best_action(feats)
-#                     next_feats, reward, done = env.step(action_idx)
-#                     ep_lls.append(env.current_ll)
-#                     feats = next_feats
-
-#                 all_agent_lls.append(ep_lls)
-
-#             # --- Aggregate results across agents ---
-#             ll_matrix = np.array(all_agent_lls)  # shape: (n_agents, n_steps)
-#             mean_ll = np.mean(ll_matrix, axis=0)
-#             std_ll = np.std(ll_matrix, axis=0)
-#             ci95 = 1.96 * std_ll / np.sqrt(len(all_agent_lls))
-#             max_ll = np.max(ll_matrix, axis=0)
-
-#             # --- Plot results ---
-#             steps = np.arange(len(mean_ll))
-#             plt.figure(figsize=(8, 6))
-#             plt.plot(steps, mean_ll, label="Mean log-likelihood", color="b")
-#             plt.fill_between(steps, mean_ll - ci95, mean_ll + ci95, alpha=0.2, color="b", label="95% CI")
-#             plt.plot(steps, max_ll, label="Max log-likelihood", color="g")
-#             plt.axhline(y=pars_ll, color="r", linestyle="--", label="Parsimony LL")
-#             plt.xlabel("Step")
-#             plt.ylabel("Log-likelihood")
-#             plt.title(f"Sample {sample_idx}, Start Tree {start_idx}")
-#             plt.xticks(steps)  # integer ticks
-#             plt.legend()
-#             plt.tight_layout()
-#             plt.grid()
-
-#             plot_path = plot_dir / f"sample{sample_idx}_start{start_idx}.png"
-#             plt.savefig(plot_path, dpi=150)
-#             plt.close()
-#             print(f"Saved plot: {plot_path}")

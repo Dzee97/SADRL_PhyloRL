@@ -199,14 +199,15 @@ def sample_dataset(input_fasta: Path, outdir: Path, num_samples: int, sample_siz
                 test_out_file = Path(str(out_file).replace('train', 'test'))
                 test_out_file.write_text('\n'.join(lines[num_rand_train_trees:]))
 
-        # Step 6: Search ML trees using test starting trees
+        # Step 6: Search ML trees using test starting trees with the best pars model params
         prefix_test_ml = "raxml_rand_test_ml"
         cmd_test_ml = [
             str(raxmlng_path), "--search", "--msa", str(sample_aln), "--model", str(pars_model_params),
-            "--tree", str(test_out_file)
+            "--prefix",  str(sample_dir / prefix_test_ml), "--tree", str(test_out_file),
+            "--opt-model", "off", "--opt-branches", "on"
         ]
         run_cmd(cmd_test_ml, quiet=True)
-        for out_file in sample_dir.glob(f"{prefix_test_ml}"):
+        for out_file in sample_dir.glob(f"{prefix_test_ml}*"):
             if out_file.suffix != ".log":
                 out_file.unlink()
 

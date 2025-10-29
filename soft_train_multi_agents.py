@@ -39,7 +39,7 @@ def train_agent_process(agent_id, samples_dir, raxmlng_path, episodes, horizon, 
 
     for ep in range(episodes):
         tree_hash, feats = env.reset()
-        pars_return = env.current_sample["pars_ll"] - env.current_ll
+        raxml_return = env.current_sample["rand_test_trees_ml_best"] - env.current_ll
         current_return = 0.0
         highest_return = 0.0
         trees_visited = {tree_hash}
@@ -72,9 +72,8 @@ def train_agent_process(agent_id, samples_dir, raxmlng_path, episodes, horizon, 
 
         # Log less frequently
         if (ep + 1) % 10 == 0:
-            print(f"[Agent {agent_id}] Ep {ep+1}/{episodes} | "
-                  f"Return: {current_return:.3f} | Highest Return: {highest_return:.3f} | "
-                  f"Pars Return: {pars_return:.3f} | Beta: {beta:.3f} | Alpha: {agent.alpha:.3f} | "
+            print(f"[Agent {agent_id}] Ep {ep+1}/{episodes} | Highest Return: {highest_return:.3f} | "
+                  f"RAxML-NG Diff: {highest_return - raxml_return:.3f} | Beta: {beta:.3f} | Alpha: {agent.alpha:.3f} | "
                   f"Policy Ent: {policy_entropy:.3f} | Target Ent: {target_entropy:.3f} | "
                   f"Trees visited: {len(trees_visited)} | Cache hits: {env.cache_hits} | "
                   f"Cache size: {len(env.tree_cache)}")
