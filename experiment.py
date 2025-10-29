@@ -166,7 +166,8 @@ def run_evaluation(eval_dqn, eval_soft, set_type="test"):
 
         # Evaluate checkpoints on test trees on self, and on validation datasets with only test trees
         evaluate_samples_dirs = {n: BASE_DIR / n for n,
-                                 c in EXPERIMENTS.items() if n == name or c["num_rand_train_trees"] == 0}
+                                 c in EXPERIMENTS.items() if (n == name or c["num_rand_train_trees"] == 0)
+                                 and c["num_samples"] <= 20}
 
         for eval_name, evaluate_samples_dir in evaluate_samples_dirs.items():
             if eval_dqn:
