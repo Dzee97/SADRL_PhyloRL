@@ -41,7 +41,7 @@ EXPERIMENTS = {
     #                                      num_rand_train_trees=100, num_rand_test_trees=10),
     # "Size7ValidationSet": dict(sample_size=7, num_samples=20, num_rand_train_trees=0, num_rand_test_trees=10),
     # Sample size 9
-    #"Size9Samples1Train100Test10": dict(sample_size=9, num_samples=1,
+    # "Size9Samples1Train100Test10": dict(sample_size=9, num_samples=1,
     #                                    num_rand_train_trees=100, num_rand_test_trees=10),
     "Size9Samples100Train100Test10": dict(sample_size=9, num_samples=100,
                                           num_rand_train_trees=100, num_rand_test_trees=10),
@@ -107,7 +107,7 @@ evaluate_cfg = dict(
     hidden_dim=train_common["hidden_dim"],
     raxmlng_path=raxmlng_path,
     horizon=train_common["horizon"],
-    forbid_loops=True,
+    top_k_reward=10,
     n_jobs=n_cores,
 )
 

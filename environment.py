@@ -127,7 +127,7 @@ class PhyloEnv:
 
         return tree_hash, self.current_feats, reward, done
 
-    def preview_step(self, move_idx):
+    def preview_step(self, move_idx, calc_reward=False):
         """
         Preview the resulting tree hash from performing one SPR move, but keep the current tree state
         """
@@ -135,7 +135,17 @@ class PhyloEnv:
         neighbor_tree = perform_spr_move(self.current_tree, move)
         tree_hash = unrooted_tree_hash(neighbor_tree)
 
-        return tree_hash
+        if not calc_reward:
+            return tree_hash
+
+        if tree_hash in self.tree_cache:
+            neighbor_tree_optim, neighbor_ll = self.tree_cache[tree_hash]
+        else:
+            neighbor_tree_optim, neighbor_ll = self._evaluate_likelihood(neighbor_tree)
+            self.tree_cache[tree_hash] = (neighbor_tree_optim, neighbor_ll)
+
+        reward = (neighbor_ll - self.current_ll)
+        return reward
 
     def _extract_features(self, tree: Tree):
         """Compute the feature vector for current tree."""

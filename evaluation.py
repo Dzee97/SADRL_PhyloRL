@@ -246,7 +246,7 @@ def plot_final_checkpoint_tables(evaluate_dir: Path, dataset_name: str, algorith
 
 
 def evaluate_checkpoints(samples_dir: Path, start_tree_set: str, checkpoints_dir: Path, hidden_dim: int,
-                         evaluate_dir: Path, raxmlng_path: Path, horizon: int, forbid_loops: bool, n_jobs: int):
+                         evaluate_dir: Path, raxmlng_path: Path, horizon: int, top_k_reward: int, n_jobs: int):
     """
     Evaluate all agents across their checkpoints in parallel (one process per agent).
     Each agent process uses a single PhyloEnv instance to reuse cached data.
@@ -321,15 +321,25 @@ def evaluate_checkpoints(samples_dir: Path, start_tree_set: str, checkpoints_dir
                     visited_trees = {tree_hash}
                     done = False
                     while not done:
-                        if forbid_loops:
-                            action_idxs = agent.select_sorted_best_actions(feats)
-                            for action_idx in action_idxs:
-                                preview_tree_hash = env.preview_step(action_idx)
-                                if preview_tree_hash not in visited_trees:
-                                    break
-                        else:
-                            action_idx = agent.select_best_action(feats)
-                        next_tree_hash, next_feats, reward, done = env.step(action_idx)
+                        action_idxs = agent.select_sorted_best_actions(feats)
+                        highest_reward = -np.inf
+                        selected_action_idx = None
+                        actions_checked = 0
+
+                        for action_idx in action_idxs:
+                            preview_tree_hash, preview_reward = env.preview_step(action_idx, calc_reward=True)
+                            if preview_tree_hash in visited_trees:
+                                continue
+
+                            if preview_reward > highest_reward:
+                                highest_reward = preview_reward
+                                selected_action_idx = action_idx
+
+                            actions_checked += 1
+                            if actions_checked == top_k_reward:
+                                break
+
+                        next_tree_hash, next_feats, reward, done = env.step(selected_action_idx)
                         visited_trees.add(next_tree_hash)
                         ep_lls.append(env.current_ll)
                         feats = next_feats
