@@ -38,18 +38,20 @@ class PhyloEnv:
             with open(sample["rand_train_trees"]) as f:
                 sample["rand_train_trees_list"] = [line for line in f]
                 self.num_train_start_trees.append(len(sample["rand_train_trees_list"]))
-            with open(sample["rand_test_trees"]) as f:
-                sample["rand_test_trees_list"] = [line for line in f]
-                self.num_test_start_trees.append(len(sample["rand_test_trees_list"]))
+            if sample["rand_test_trees"].exists():
+                with open(sample["rand_test_trees"]) as f:
+                    sample["rand_test_trees_list"] = [line for line in f]
+                    self.num_test_start_trees.append(len(sample["rand_test_trees_list"]))
             # Extract RAxML-NG search results for random test trees
-            with open(sample["rand_test_trees_ml"]) as f:
-                rand_test_trees_ml_list = []
-                for line in f:
-                    if "ML tree search #" in line:
-                        rand_test_trees_ml_list.append(float(line.strip().split()[-1]))
-                    if line.startswith("Final LogLikelihood:"):
-                        sample["rand_test_trees_ml_best"] = float(line.strip().split()[-1])
-                sample["rand_test_trees_ml_list"] = rand_test_trees_ml_list
+            if sample["rand_test_trees_ml"].exists():
+                with open(sample["rand_test_trees_ml"]) as f:
+                    rand_test_trees_ml_list = []
+                    for line in f:
+                        if "ML tree search #" in line:
+                            rand_test_trees_ml_list.append(float(line.strip().split()[-1]))
+                        if line.startswith("Final LogLikelihood:"):
+                            sample["rand_test_trees_ml_best"] = float(line.strip().split()[-1])
+                    sample["rand_test_trees_ml_list"] = rand_test_trees_ml_list
             # Extract parimony normalization likelihood from log
             with open(sample["pars_log"]) as f:
                 for line in f:
