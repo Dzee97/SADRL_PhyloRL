@@ -575,15 +575,9 @@ if __name__ == "__main__":
         raxmlng_path=raxmlng_path,
         feature_names=feature_names,
         hidden_dim=256,
-<<<<<<< HEAD
-        n_background=100,  # Start small, increase if needed
-        n_test=1000,
-        shap_method="deep",  # "kernel", "deep", "gradient", or "sampling"
-=======
         n_background=500,  # Start small, increase if needed
         n_test=1000,
         shap_method="kernel",  # "kernel", "deep", "gradient", or "sampling"
->>>>>>> 92cda4702c50d77b65fd8fb5b60baf1e3c13fcc5
         output_dir=output_dir,
         compare_with_permutation=True  # Set to False to skip permutation (faster)
     )
