@@ -44,7 +44,9 @@ EXPERIMENTS = {
     # Sample size 9
     # "Size9Samples1Train100Test10": dict(sample_size=9, num_samples=1,
     #                                    num_rand_train_trees=100, num_rand_test_trees=10),
-    "Size9Samples20Train100Test10": dict(sample_size=9, num_samples=20,
+    # "Size9Samples20Train100Test10": dict(sample_size=9, num_samples=20,
+    #                                    num_rand_train_trees=100, num_rand_test_trees=10),
+    "Size9Samples100Train100Test10": dict(sample_size=9, num_samples=100,
                                          num_rand_train_trees=100, num_rand_test_trees=10),
 }
 
@@ -188,6 +190,8 @@ def run_evaluation(eval_dqn, eval_rainbow, eval_soft, set_type="test"):
                     )
                     plot_over_checkpoints(evaluate_dir=evaluate_dir, dataset_name=name, algorithm_name="DQN",
                                           loops_suffix=loops_suffix)
+                    plot_final_checkpoint_tables(evaluate_dir=evaluate_dir, dataset_name=name,
+                                                 algorithm_name="DQN", loops_suffix=loops_suffix)
                 if eval_rainbow:
                     checkpoints_dir = samples_dir / f"rainbow_{rainbow_cfg_hash}" / "checkpoints"
                     evaluate_dir = samples_dir / f"rainbow_{rainbow_cfg_hash}" / f"evaluate_{eval_name}_{loops_suffix}"
