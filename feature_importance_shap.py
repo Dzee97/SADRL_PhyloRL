@@ -225,7 +225,7 @@ class FeatureImportanceAnalyzer:
 # ==================== PLOTTING FUNCTIONS ====================
 
 def plot_shap_summary(shap_values, features, feature_names=None, output_path=None,
-                      max_display=20):
+                      max_display=30):
     """
     Create SHAP summary plot showing feature importance.
 
@@ -249,7 +249,7 @@ def plot_shap_summary(shap_values, features, feature_names=None, output_path=Non
         plt.show()
 
 
-def plot_shap_bar(shap_values, feature_names=None, output_path=None, max_display=20):
+def plot_shap_bar(shap_values, feature_names=None, output_path=None, max_display=30):
     """
     Create SHAP bar plot showing mean absolute SHAP values.
     """
@@ -328,7 +328,7 @@ def compare_methods(shap_importance, permutation_importance, feature_names=None,
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 8))
 
     # Sort by SHAP importance
-    sorted_indices = np.argsort(shap_importance)[::-1][:20]
+    sorted_indices = np.argsort(shap_importance)[::-1]
 
     if feature_names is None:
         feature_names = [f"Feature {i}" for i in range(len(shap_importance))]
@@ -510,18 +510,18 @@ def analyze_checkpoint_with_shap(checkpoint_path: Path, samples_dir: Path,
             f.write(f"Method: {shap_method}\n")
             f.write(f"Background samples: {n_background}\n")
             f.write(f"Test samples: {n_test}\n")
-            f.write(f"\nTop 20 Features by Mean |SHAP value|:\n")
+            f.write(f"\nTop Features by Mean |SHAP value|:\n")
             f.write(f"{'-'*60}\n")
 
             sorted_indices = np.argsort(shap_importance)[::-1]
-            for rank, idx in enumerate(sorted_indices[:20], 1):
+            for rank, idx in enumerate(sorted_indices, 1):
                 f.write(f"{rank:2d}. {feature_names[idx]:40s} {shap_importance[idx]:8.4f}\n")
 
             if perm_importance is not None:
                 f.write(f"\n\nPermutation Importance (for comparison):\n")
                 f.write(f"{'-'*60}\n")
                 sorted_perm = np.argsort(perm_importance)[::-1]
-                for rank, idx in enumerate(sorted_perm[:20], 1):
+                for rank, idx in enumerate(sorted_perm, 1):
                     f.write(f"{rank:2d}. {feature_names[idx]:40s} {perm_importance[idx]:8.4f}\n")
 
         print(f"\n✅ All results saved to {output_dir}")
@@ -563,7 +563,7 @@ if __name__ == "__main__":
         "NJ support new regraft split"
     ]
 
-    checkpoint_path = Path("output/Size9Samples100Train100Test10/soft_08e5601b/checkpoints/agent_0_ep6000.pt")
+    checkpoint_path = Path("output/Size9Samples1Train100Test10/soft_08e5601b/checkpoints/agent_0_ep6000.pt")
     samples_dir = Path("output/Size9Samples100Train100Test10")
     raxmlng_path = Path("dependencies/raxmlng/raxml-ng")
     output_dir = Path("output/shap_analysis")
@@ -575,16 +575,16 @@ if __name__ == "__main__":
         raxmlng_path=raxmlng_path,
         feature_names=feature_names,
         hidden_dim=256,
-        n_background=100,  # Start small, increase if needed
-        n_test=500,
-        shap_method="deep",  # "kernel", "deep", "gradient", or "sampling"
+        n_background=500,  # Start small, increase if needed
+        n_test=1000,
+        shap_method="kernel",  # "kernel", "deep", "gradient", or "sampling"
         output_dir=output_dir,
-        compare_with_permutation=False  # Set to False to skip permutation (faster)
+        compare_with_permutation=True  # Set to False to skip permutation (faster)
     )
 
     print("\n" + "="*60)
-    print("Top 10 Most Important Features:")
+    print("Most Important Features:")
     print("="*60)
-    top_10 = np.argsort(importance)[::-1][:10]
+    top_10 = np.argsort(importance)[::-1]
     for rank, idx in enumerate(top_10, 1):
         print(f"{rank:2d}. {feature_names[idx]:40s} {importance[idx]:.4f}")
