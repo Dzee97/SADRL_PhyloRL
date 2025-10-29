@@ -145,7 +145,7 @@ class PhyloEnv:
             self.tree_cache[tree_hash] = (neighbor_tree_optim, neighbor_ll)
 
         reward = (neighbor_ll - self.current_ll)
-        return reward
+        return tree_hash, reward
 
     def _extract_features(self, tree: Tree):
         """Compute the feature vector for current tree."""
