@@ -33,7 +33,7 @@ class EvalAgent:
             return indices_sorted.cpu().numpy()
 
 
-def plot_over_checkpoints(evaluate_dir: Path, dataset_name: str, algorithm_name: str, loops_suffix: str):
+def plot_over_checkpoints(evaluate_dir: Path, dataset_name: str, algorithm_name: str):
     """
     Plot evaluation results across checkpoints for each sample.
 
@@ -120,8 +120,7 @@ def plot_over_checkpoints(evaluate_dir: Path, dataset_name: str, algorithm_name:
         ax1.set_xticklabels(episode_nums, rotation=45)
         ax1.grid(alpha=0.3)
         ax1.set_title(
-            f"Dataset: {dataset_name} - {algorithm_name} - Sample {sample_idx+1} - "
-            f"{loops_suffix.replace('_', ' ').capitalize()}\n"
+            f"Dataset: {dataset_name} - {algorithm_name} - Sample {sample_idx+1}\n"
             "Highest LL per episode (mean ± 95% CI, with agent traces)"
         )
 
@@ -132,7 +131,7 @@ def plot_over_checkpoints(evaluate_dir: Path, dataset_name: str, algorithm_name:
         print(f"Plot saved to {plot_file}")
 
 
-def plot_final_checkpoint_tables(evaluate_dir: Path, dataset_name: str, algorithm_name: str, loops_suffix: str):
+def plot_final_checkpoint_tables(evaluate_dir: Path, dataset_name: str, algorithm_name: str):
     """
     Create heatmap tables for each agent showing final checkpoint performance.
     Rows = samples, Columns = starting trees.
@@ -224,8 +223,8 @@ def plot_final_checkpoint_tables(evaluate_dir: Path, dataset_name: str, algorith
         # Title
         final_episode = episode_nums[final_checkpoint_idx]
         ax.set_title(
-            f'{algorithm_name} - Agent {agent_idx} - Final Checkpoint (Episode {final_episode})\n'
-            f'{loops_suffix.replace("_", " ").capitalize()} - Dataset: {dataset_name}\n'
+            f'{algorithm_name} - Agent {agent_idx} - Final Checkpoint (Episode {final_episode}) - '
+            f'Dataset: {dataset_name}\n'
             f'Max LL and Steps Across Samples and Starting Trees\n'
             f'Green = at/above parsimony, Red = 10%+ below parsimony (per-row scaling)',
             fontsize=11, pad=15

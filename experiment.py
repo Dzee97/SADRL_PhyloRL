@@ -4,7 +4,6 @@ from pathlib import Path
 from functools import partial
 from sample_datasets import sample_dataset
 from train_multi_agents import run_parallel_training
-from rainbow_train_multi_agents import rainbow_run_parallel_training
 from soft_train_multi_agents import soft_run_parallel_training
 from evaluation import evaluate_checkpoints, plot_over_checkpoints, plot_final_checkpoint_tables
 
@@ -42,12 +41,11 @@ EXPERIMENTS = {
     #                                      num_rand_train_trees=100, num_rand_test_trees=10),
     # "Size7ValidationSet": dict(sample_size=7, num_samples=20, num_rand_train_trees=0, num_rand_test_trees=10),
     # Sample size 9
-    # "Size9Samples1Train100Test10": dict(sample_size=9, num_samples=1,
-    #                                    num_rand_train_trees=100, num_rand_test_trees=10),
-    # "Size9Samples20Train100Test10": dict(sample_size=9, num_samples=20,
-    #                                    num_rand_train_trees=100, num_rand_test_trees=10),
+    "Size9Samples1Train100Test10": dict(sample_size=9, num_samples=1,
+                                        num_rand_train_trees=100, num_rand_test_trees=10),
     "Size9Samples100Train100Test10": dict(sample_size=9, num_samples=100,
-                                         num_rand_train_trees=100, num_rand_test_trees=10),
+                                          num_rand_train_trees=100, num_rand_test_trees=10),
+    "Size9ValidationSet": dict(sample_size=9, num_samples=20, num_rand_train_trees=0, num_rand_test_trees=10),
 }
 
 # Set number of cores for parallel agent training and evaluation
@@ -109,6 +107,7 @@ evaluate_cfg = dict(
     hidden_dim=train_common["hidden_dim"],
     raxmlng_path=raxmlng_path,
     horizon=train_common["horizon"],
+    forbid_loops=True,
     n_jobs=n_cores,
 )
 
@@ -125,14 +124,12 @@ def run_sampling():
         sample_fn(outdir=outdir, **cfg)
 
 
-def run_training(train_dqn, train_rainbow, train_soft):
+def run_training(train_dqn, train_soft):
     """Run training for all experiments."""
     print("\n=== Training agents ===")
 
     dqn_fn = partial(run_parallel_training, raxmlng_path=raxmlng_path, n_cores=n_cores,
                      **train_common, **dqn_cfg)
-    rainbow_fn = partial(rainbow_run_parallel_training, raxmlng_path=raxmlng_path, n_cores=n_cores,
-                         **train_common, **rainbow_cfg)
     soft_fn = partial(soft_run_parallel_training, raxmlng_path=raxmlng_path, n_cores=n_cores,
                       **train_common, **soft_cfg)
 
@@ -148,11 +145,6 @@ def run_training(train_dqn, train_rainbow, train_soft):
             cfg_dir.mkdir(parents=True, exist_ok=True)
             (cfg_dir / "config.json").write_text(json.dumps(full_dqn_cfg, indent=4))
             dqn_fn(samples_dir=samples_dir, checkpoint_dir=cfg_dir / "checkpoints")
-        if train_rainbow:
-            cfg_dir = samples_dir / f"rainbow_{rainbow_cfg_hash}"
-            cfg_dir.mkdir(parents=True, exist_ok=True)
-            (cfg_dir / "config.json").write_text(json.dumps(full_rainbow_cfg, indent=4))
-            rainbow_fn(samples_dir=samples_dir, checkpoint_dir=cfg_dir / "checkpoints")
         if train_soft:
             cfg_dir = samples_dir / f"soft_{soft_cfg_hash}"
             cfg_dir.mkdir(parents=True, exist_ok=True)
@@ -160,7 +152,7 @@ def run_training(train_dqn, train_rainbow, train_soft):
             soft_fn(samples_dir=samples_dir, checkpoint_dir=cfg_dir / "checkpoints")
 
 
-def run_evaluation(eval_dqn, eval_rainbow, eval_soft, set_type="test"):
+def run_evaluation(eval_dqn, eval_soft, set_type="test"):
     """Evaluate trained checkpoints on train/test sets."""
     print("\n=== Evaluating agents ===")
     evaluate_fn = partial(evaluate_checkpoints, **evaluate_cfg)
@@ -177,88 +169,45 @@ def run_evaluation(eval_dqn, eval_rainbow, eval_soft, set_type="test"):
                                  c in EXPERIMENTS.items() if n == name or c["num_rand_train_trees"] == 0}
 
         for eval_name, evaluate_samples_dir in evaluate_samples_dirs.items():
-            for loops_suffix, forbid_loops in [("allow_loops", False), ("forbid_loops", True)]:
-                if eval_dqn:
-                    checkpoints_dir = samples_dir / f"dqn_{dqn_cfg_hash}" / "checkpoints"
-                    evaluate_dir = samples_dir / f"dqn_{dqn_cfg_hash}" / f"evaluate_{eval_name}_{loops_suffix}"
-                    evaluate_fn(
-                        samples_dir=evaluate_samples_dir,
-                        start_tree_set=set_type,
-                        checkpoints_dir=checkpoints_dir,
-                        forbid_loops=forbid_loops,
-                        evaluate_dir=evaluate_dir
-                    )
-                    plot_over_checkpoints(evaluate_dir=evaluate_dir, dataset_name=name, algorithm_name="DQN",
-                                          loops_suffix=loops_suffix)
-                    plot_final_checkpoint_tables(evaluate_dir=evaluate_dir, dataset_name=name,
-                                                 algorithm_name="DQN", loops_suffix=loops_suffix)
-                if eval_rainbow:
-                    checkpoints_dir = samples_dir / f"rainbow_{rainbow_cfg_hash}" / "checkpoints"
-                    evaluate_dir = samples_dir / f"rainbow_{rainbow_cfg_hash}" / f"evaluate_{eval_name}_{loops_suffix}"
-                    evaluate_fn(
-                        samples_dir=evaluate_samples_dir,
-                        start_tree_set=set_type,
-                        checkpoints_dir=checkpoints_dir,
-                        forbid_loops=forbid_loops,
-                        evaluate_dir=evaluate_dir
-                    )
-                    plot_over_checkpoints(evaluate_dir=evaluate_dir, dataset_name=name, algorithm_name="Rainbow",
-                                          loops_suffix=loops_suffix)
-                if eval_soft:
-                    checkpoints_dir = samples_dir / f"soft_{soft_cfg_hash}" / "checkpoints"
-                    evaluate_dir = samples_dir / f"soft_{soft_cfg_hash}" / f"evaluate_{eval_name}_{loops_suffix}"
-                    evaluate_fn(
-                        samples_dir=evaluate_samples_dir,
-                        start_tree_set=set_type,
-                        checkpoints_dir=checkpoints_dir,
-                        forbid_loops=forbid_loops,
-                        evaluate_dir=evaluate_dir
-                    )
-                    plot_over_checkpoints(evaluate_dir=evaluate_dir, dataset_name=name,
-                                          algorithm_name="Soft Q-Learning", loops_suffix=loops_suffix)
-                    plot_final_checkpoint_tables(evaluate_dir=evaluate_dir, dataset_name=name,
-                                                 algorithm_name="Soft Q-Learning", loops_suffix=loops_suffix)
-
-
-def run_plotting(plot_dqn, plot_rainbow, plot_soft):
-    """Generate plots for evaluation results."""
-    print("\n=== Plotting results ===")
-    for name, cfg in EXPERIMENTS.items():
-        samples_dir = BASE_DIR / name
-        for loops_suffix in ["allow_loops", "forbid_loops"]:
-            if plot_dqn:
-                eval_dir = samples_dir / f"dqn_{dqn_cfg_hash}" / f"evaluate_{loops_suffix}"
-                plot_over_checkpoints(evaluate_dir=eval_dir, dataset_name=name, algorithm_name="DQN",
-                                      loops_suffix=loops_suffix)
-            if plot_rainbow:
-                eval_dir = samples_dir / f"rainbow_{rainbow_cfg_hash}" / f"evaluate_{loops_suffix}"
-                plot_over_checkpoints(evaluate_dir=eval_dir, dataset_name=name,
-                                      algorithm_name="Rainbow", loops_suffix=loops_suffix)
-            if plot_soft:
-                eval_dir = samples_dir / f"soft_{soft_cfg_hash}" / f"evaluate_{loops_suffix}"
-                plot_over_checkpoints(evaluate_dir=eval_dir, dataset_name=name,
-                                      algorithm_name="Soft Q-Network", loops_suffix=loops_suffix)
+            if eval_dqn:
+                checkpoints_dir = samples_dir / f"dqn_{dqn_cfg_hash}" / "checkpoints"
+                evaluate_dir = samples_dir / f"dqn_{dqn_cfg_hash}" / f"evaluate_{eval_name}"
+                evaluate_fn(
+                    samples_dir=evaluate_samples_dir,
+                    start_tree_set=set_type,
+                    checkpoints_dir=checkpoints_dir,
+                    evaluate_dir=evaluate_dir
+                )
+                plot_over_checkpoints(evaluate_dir=evaluate_dir, dataset_name=name, algorithm_name="DQN")
+                plot_final_checkpoint_tables(evaluate_dir=evaluate_dir, dataset_name=name, algorithm_name="DQN")
+            if eval_soft:
+                checkpoints_dir = samples_dir / f"soft_{soft_cfg_hash}" / "checkpoints"
+                evaluate_dir = samples_dir / f"soft_{soft_cfg_hash}" / f"evaluate_{eval_name}"
+                evaluate_fn(
+                    samples_dir=evaluate_samples_dir,
+                    start_tree_set=set_type,
+                    checkpoints_dir=checkpoints_dir,
+                    evaluate_dir=evaluate_dir
+                )
+                plot_over_checkpoints(evaluate_dir=evaluate_dir, dataset_name=name, algorithm_name="Soft Q-Learning")
+                plot_final_checkpoint_tables(evaluate_dir=evaluate_dir, dataset_name=name,
+                                             algorithm_name="Soft Q-Learning")
 
 
 # === MAIN EXECUTION ===
-
 if __name__ == "__main__":
     # toggle these flags to control which parts run
     RUN_SAMPLING = True
     RUN_TRAINING = True
     RUN_EVALUATION = True
-    RUN_PLOTTING = True
 
     # toggle these flags to control which algorithms to run
     DQN = True
-    RAINBOW = False
     SOFT = True
 
     if RUN_SAMPLING:
         run_sampling()
     if RUN_TRAINING:
-        run_training(train_dqn=DQN, train_rainbow=RAINBOW, train_soft=SOFT)
+        run_training(train_dqn=DQN, train_soft=SOFT)
     if RUN_EVALUATION:
-        run_evaluation(eval_dqn=DQN, eval_rainbow=RAINBOW, eval_soft=SOFT)
-    # if RUN_PLOTTING:
-    #    run_plotting(plot_dqn=DQN, plot_rainbow=RAINBOW, plot_soft=SOFT)
+        run_evaluation(eval_dqn=DQN, eval_soft=SOFT)

@@ -178,6 +178,8 @@ def sample_dataset(input_fasta: Path, outdir: Path, num_samples: int, sample_siz
         for out_file in sample_dir.glob(f"{prefix_eval_pars}*"):
             if out_file.suffix not in [".bestModel", ".log"]:
                 out_file.unlink()
+            if out_file.suffix == ".bestModel":
+                pars_model_params = out_file
 
         # Step 5: RAxML-NG random starting trees for training and testing
         prefix_rand = "raxml_rand_train"
@@ -197,7 +199,18 @@ def sample_dataset(input_fasta: Path, outdir: Path, num_samples: int, sample_siz
                 test_out_file = Path(str(out_file).replace('train', 'test'))
                 test_out_file.write_text('\n'.join(lines[num_rand_train_trees:]))
 
-        # Step 6: Bootstrap split support
+        # Step 6: Search ML trees using test starting trees
+        prefix_test_ml = "raxml_rand_test_ml"
+        cmd_test_ml = [
+            str(raxmlng_path), "--search", "--msa", str(sample_aln), "--model", str(pars_model_params),
+            "--tree", str(test_out_file)
+        ]
+        run_cmd(cmd_test_ml, quiet=True)
+        for out_file in sample_dir.glob(f"{prefix_test_ml}"):
+            if out_file.suffix != ".log":
+                out_file.unlink()
+
+        # Step 7: Bootstrap split support
         print("Computing bootstrap supports...")
         aln = AlignIO.read(str(sample_aln), "fasta")
         split_support_upgma, split_support_nj = compute_bootstrap_support(aln, num_bootstrap, n_jobs=-1)
