@@ -42,7 +42,7 @@ class PhyloEnv:
                 sample["rand_test_trees_list"] = [line for line in f]
                 self.num_test_start_trees.append(len(sample["rand_test_trees_list"]))
             # Extract RAxML-NG search results for random test trees
-            with open(sample["rand_test_trees_ml"]):
+            with open(sample["rand_test_trees_ml"]) as f:
                 rand_test_trees_ml_list = []
                 for line in f:
                     if "ML tree search #" in line:
