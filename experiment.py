@@ -43,8 +43,8 @@ EXPERIMENTS = {
     # Sample size 9
     "Size9Samples1Train100Test10": dict(sample_size=9, num_samples=1,
                                         num_rand_train_trees=100, num_rand_test_trees=10),
-    "Size9Samples100Train100Test10": dict(sample_size=9, num_samples=100,
-                                          num_rand_train_trees=100, num_rand_test_trees=10),
+    "Size9Samples100Train100Test0": dict(sample_size=9, num_samples=100,
+                                         num_rand_train_trees=100, num_rand_test_trees=0),
     "Size9ValidationSet": dict(sample_size=9, num_samples=20, num_rand_train_trees=0, num_rand_test_trees=10),
 }
 
@@ -164,9 +164,10 @@ def run_evaluation(eval_dqn, eval_soft, set_type="test"):
 
         samples_dir = BASE_DIR / name
 
-        # Evaluate checkpoints on test trees on self, and on validation datasets with only test trees
+        # Evaluate checkpoints on self if there are test trees, and on validation datasets with only test trees
         evaluate_samples_dirs = {n: BASE_DIR / n for n,
-                                 c in EXPERIMENTS.items() if n == name or c["num_rand_train_trees"] == 0}
+                                 c in EXPERIMENTS.items() if (n == name or c["num_rand_train_trees"] == 0)
+                                 and c["num_rand_test_trees"] > 0}
 
         for eval_name, evaluate_samples_dir in evaluate_samples_dirs.items():
             if eval_dqn:
