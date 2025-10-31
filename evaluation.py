@@ -32,6 +32,23 @@ class EvalAgent:
             return indices_sorted.cpu().numpy()
 
 
+def accuracy_over_checkpoints(evaluate_dir: Path):
+    results = np.load(evaluate_dir / "results.npy")
+    test_mls_all = np.load(evaluate_dir / "test_mls_all.npy")
+    episode_nums = np.load(evaluate_dir / "episode_nums.npy")
+
+    n_agents, n_samples, n_checkpoints, n_start_trees, n_steps = results.shape
+
+    results_max = np.max(results, axis=4)
+    test_mls_all_expended = test_mls_all[np.newaxis, :, np.newaxis, :]
+    results_match_raxml = results_max >= test_mls_all_expended - 0.1
+
+    results_match_raxml_count = np.sum(results_match_raxml, axis=3)
+    results_match_raxml_count_median = np.median(results_match_raxml_count, axis=0)
+
+    results_match_raxml_count_median
+
+
 def plot_over_checkpoints(evaluate_dir: Path, dataset_name: str, algorithm_name: str):
     """
     Plot evaluation results across checkpoints for each sample.
