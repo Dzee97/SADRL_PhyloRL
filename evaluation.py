@@ -46,7 +46,7 @@ def accuracy_over_checkpoints(evaluate_dir: Path):
     results_match_raxml_count = np.sum(results_match_raxml, axis=3)
     results_match_raxml_count_median = np.median(results_match_raxml_count, axis=0)
 
-    results_match_raxml_count_median
+    return results_match_raxml_count_median
 
 
 def plot_over_checkpoints(evaluate_dir: Path, dataset_name: str, algorithm_name: str):
