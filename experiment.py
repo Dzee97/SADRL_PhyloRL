@@ -53,10 +53,10 @@ n_cores = 5
 
 # Training parameters (shared)
 train_common = dict(
-    episodes=10_000,
+    episodes=50_000,
     horizon=20,
     n_agents=5,
-    checkpoint_freq=100,
+    checkpoint_freq=1000,
     update_freq=1,
     batch_size=128,
     hidden_dim=256,
@@ -83,9 +83,9 @@ rainbow_cfg = dict(
 soft_cfg = dict(
     replay_alpha=0.0,
     replay_beta_start=0.4,
-    replay_beta_frames=200_000,
+    replay_beta_frames=1_000_000,
     temp_alpha_init=4.0,
-    temp_alpha_frames=200_000
+    temp_alpha_frames=1_000_000
 )
 
 # Hash full parameters for file names
@@ -107,7 +107,7 @@ evaluate_cfg = dict(
     hidden_dim=train_common["hidden_dim"],
     raxmlng_path=raxmlng_path,
     horizon=train_common["horizon"],
-    top_k_reward=10,
+    top_k_reward=3,
     n_jobs=n_cores,
 )
 
@@ -172,7 +172,7 @@ def run_evaluation(eval_dqn, eval_soft, set_type="test"):
         for eval_name, evaluate_samples_dir in evaluate_samples_dirs.items():
             if eval_dqn:
                 checkpoints_dir = samples_dir / f"dqn_{dqn_cfg_hash}" / "checkpoints"
-                evaluate_dir = samples_dir / f"dqn_{dqn_cfg_hash}" / f"evaluate_{eval_name}"
+                evaluate_dir = samples_dir / f"dqn_{dqn_cfg_hash}" / f"evaluate_{eval_name}_topk{evaluate_cfg['top_k_reward']}"
                 evaluate_fn(
                     samples_dir=evaluate_samples_dir,
                     start_tree_set=set_type,
@@ -183,7 +183,7 @@ def run_evaluation(eval_dqn, eval_soft, set_type="test"):
                 plot_final_checkpoint_tables(evaluate_dir=evaluate_dir, dataset_name=name, algorithm_name="DQN")
             if eval_soft:
                 checkpoints_dir = samples_dir / f"soft_{soft_cfg_hash}" / "checkpoints"
-                evaluate_dir = samples_dir / f"soft_{soft_cfg_hash}" / f"evaluate_{eval_name}"
+                evaluate_dir = samples_dir / f"soft_{soft_cfg_hash}" / f"evaluate_{eval_name}_topk{evaluate_cfg['top_k_reward']}"
                 evaluate_fn(
                     samples_dir=evaluate_samples_dir,
                     start_tree_set=set_type,

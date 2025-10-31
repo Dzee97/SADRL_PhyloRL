@@ -563,7 +563,7 @@ if __name__ == "__main__":
         "NJ support new regraft split"
     ]
 
-    checkpoint_path = Path("output/Size9Samples1Train100Test10/soft_08e5601b/checkpoints/agent_0_ep6000.pt")
+    checkpoint_path = Path("output/Size9Samples100Train100Test10/soft_919d2021/checkpoints/agent_0_ep6000.pt")
     samples_dir = Path("output/Size9Samples100Train100Test10")
     raxmlng_path = Path("dependencies/raxmlng/raxml-ng")
     output_dir = Path("output/shap_analysis")
@@ -575,11 +575,11 @@ if __name__ == "__main__":
         raxmlng_path=raxmlng_path,
         feature_names=feature_names,
         hidden_dim=256,
-        n_background=500,  # Start small, increase if needed
-        n_test=1000,
+        n_background=200,  # Start small, increase if needed
+        n_test=10_000,
         shap_method="kernel",  # "kernel", "deep", "gradient", or "sampling"
         output_dir=output_dir,
-        compare_with_permutation=True  # Set to False to skip permutation (faster)
+        compare_with_permutation=False  # Set to False to skip permutation (faster)
     )
 
     print("\n" + "="*60)
