@@ -32,20 +32,12 @@ sampling_cfg = dict(
 
 # Experiment sets
 EXPERIMENTS = {
-    # Sample size 7
-    # "Size7Samples1Train100Test10": dict(sample_size=7, num_samples=1,
-    #                                    num_rand_train_trees=100, num_rand_test_trees=10),
-    # "Size7Samples20Train100Test10": dict(sample_size=7, num_samples=20,
-    #                                     num_rand_train_trees=100, num_rand_test_trees=10),
-    # "Size7Samples100Train100Test10": dict(sample_size=9, num_samples=100,
-    #                                      num_rand_train_trees=100, num_rand_test_trees=10),
-    # "Size7ValidationSet": dict(sample_size=7, num_samples=20, num_rand_train_trees=0, num_rand_test_trees=10),
     # Sample size 9
-    # "Size9Samples1Train100Test10": dict(sample_size=9, num_samples=1,
-    #                                    num_rand_train_trees=100, num_rand_test_trees=10),
-    "Size9Samples100Train100Test10": dict(sample_size=9, num_samples=100,
-                                          num_rand_train_trees=100, num_rand_test_trees=10),
-    "Size9ValidationSet": dict(sample_size=9, num_samples=20, num_rand_train_trees=0, num_rand_test_trees=10),
+    # "Size9Samples1Train100Test20": dict(sample_size=9, num_samples=1,
+    #                                    num_rand_train_trees=100, num_rand_test_trees=20),
+    "Size9Samples100Train100Test20": dict(sample_size=9, num_samples=100,
+                                          num_rand_train_trees=100, num_rand_test_trees=20),
+    "Size9ValidationSet": dict(sample_size=9, num_samples=20, num_rand_train_trees=0, num_rand_test_trees=20),
 }
 
 # Set number of cores for parallel agent training and evaluation
@@ -172,7 +164,8 @@ def run_evaluation(eval_dqn, eval_soft, set_type="test"):
         for eval_name, evaluate_samples_dir in evaluate_samples_dirs.items():
             if eval_dqn:
                 checkpoints_dir = samples_dir / f"dqn_{dqn_cfg_hash}" / "checkpoints"
-                evaluate_dir = samples_dir / f"dqn_{dqn_cfg_hash}" / f"evaluate_{eval_name}_topk{evaluate_cfg['top_k_reward']}"
+                evaluate_dir = samples_dir / f"dqn_{dqn_cfg_hash}" / \
+                    f"evaluate_{eval_name}_topk{evaluate_cfg['top_k_reward']}"
                 evaluate_fn(
                     samples_dir=evaluate_samples_dir,
                     start_tree_set=set_type,
@@ -183,7 +176,8 @@ def run_evaluation(eval_dqn, eval_soft, set_type="test"):
                 plot_final_checkpoint_tables(evaluate_dir=evaluate_dir, dataset_name=name, algorithm_name="DQN")
             if eval_soft:
                 checkpoints_dir = samples_dir / f"soft_{soft_cfg_hash}" / "checkpoints"
-                evaluate_dir = samples_dir / f"soft_{soft_cfg_hash}" / f"evaluate_{eval_name}_topk{evaluate_cfg['top_k_reward']}"
+                evaluate_dir = samples_dir / f"soft_{soft_cfg_hash}" / \
+                    f"evaluate_{eval_name}_topk{evaluate_cfg['top_k_reward']}"
                 evaluate_fn(
                     samples_dir=evaluate_samples_dir,
                     start_tree_set=set_type,

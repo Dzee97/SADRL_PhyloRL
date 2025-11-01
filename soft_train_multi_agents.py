@@ -48,7 +48,13 @@ def train_agent_process(agent_id, samples_dir, raxmlng_path, episodes, horizon, 
         done = False
 
         while not done:
-            action_idx = agent.select_action(feats)
+            # Sample actions equal to number of current visited trees
+            action_idxs = agent.select_actions(feats, num_actions=len(trees_visited))
+            for action_idx in action_idxs:
+                # Preview neighbor trees from actions and select first action giving an unvisited tree
+                preview_tree_hash = env.preview_step(action_idx, calc_reward=False)
+                if preview_tree_hash not in trees_visited:
+                    break
             feat_vec = feats[action_idx]
             next_tree_hash, next_feats, reward, done = env.step(action_idx)
 

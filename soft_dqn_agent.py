@@ -125,7 +125,7 @@ class SoftDQNAgent:
     def alpha(self):
         return self.log_alpha.exp().item()
 
-    def select_action(self, state_action_feats, eval_mode=False):
+    def select_actions(self, state_action_feats, num_actions):
         """
         Select an action given all possible (state, action) feature vectors.
         Each row of `state_action_feats` corresponds to one action for the same state.
@@ -136,14 +136,12 @@ class SoftDQNAgent:
             feats_t = torch.tensor(state_action_feats, dtype=torch.float32, device=self.device)
             q_values = self.q1(feats_t).squeeze(-1)  # shape [num_actions]
 
-            if eval_mode:
-                action = torch.argmax(q_values).item()
-            else:
-                alpha = self.log_alpha.exp()
-                probs = torch.softmax(q_values / alpha, dim=0)
-                action = torch.multinomial(probs, 1).item()
+            alpha = self.log_alpha.exp()
+            probs = torch.softmax(q_values / alpha, dim=0)
+            num_actions = min(num_actions, len(probs))
+            actions = torch.multinomial(probs, num_actions, replacement=False).cpu().numpy()
 
-            return action
+            return actions
 
     def update(self, batch_size, beta, target_entropy):
         if len(self.replay) < batch_size:
