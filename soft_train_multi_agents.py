@@ -80,7 +80,7 @@ def train_agent_process(agent_id, samples_dir, raxmlng_path, episodes, horizon, 
         if (ep + 1) % 10 == 0:
             print(f"[Agent {agent_id}] Ep {ep+1}/{episodes} | Highest Return: {highest_return:.3f} | "
                   f"RAxML-NG Diff: {highest_return - raxml_return:.3f} | Beta: {beta:.3f} | Alpha: {agent.alpha:.3f} | "
-                  f"Policy Ent: {policy_entropy:.3f} | Target Ent: {target_entropy:.3f} | "
+                  f"Policy Ent: {policy_entropy:.3f} | Target Ent: {target_entropy:.3f} | Q loss: {q_loss:.3f} | "
                   f"Trees visited: {len(trees_visited)} | Cache hits: {env.cache_hits} | "
                   f"Cache size: {len(env.tree_cache)}")
 
