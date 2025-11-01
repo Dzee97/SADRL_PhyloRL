@@ -99,7 +99,7 @@ evaluate_cfg = dict(
     hidden_dim=train_common["hidden_dim"],
     raxmlng_path=raxmlng_path,
     horizon=train_common["horizon"],
-    top_k_reward=3,
+    top_k_reward=1,
     n_jobs=n_cores,
 )
 
