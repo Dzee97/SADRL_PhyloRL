@@ -54,7 +54,7 @@ train_common = dict(
     hidden_dim=256,
     replay_size=10_000,
     min_replay_start=1000,
-    learning_rate=1e-4,
+    learning_rate=1e-5,
     gamma=0.9,
     tau=0.005
 )
