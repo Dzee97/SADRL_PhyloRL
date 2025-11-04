@@ -44,7 +44,9 @@ def accuracy_over_checkpoints(evaluate_dir: Path, train_dataset: str, eval_datas
     results_match_raxml = results_max >= test_mls_all_expended - 0.1
 
     results_match_raxml_count = np.sum(results_match_raxml, axis=3)
-    results_match_raxml_count_mean = np.mean(results_match_raxml_count, axis=1)
+    results_match_raxml_count = np.mean(results_match_raxml_count, axis=1)
+    results_match_raxml_count_mean = np.mean(results_match_raxml_count, axis=0)
+
     results_match_raxml_count_std = np.std(results_match_raxml_count, axis=1)
     results_match_raxml_count_ci95 = 1.96 * results_match_raxml_count_std / np.sqrt(n_samples)
 
@@ -54,10 +56,10 @@ def accuracy_over_checkpoints(evaluate_dir: Path, train_dataset: str, eval_datas
 
     color = 'tab:red'
     for a in range(n_agents):
-        ax1.plot(episode_nums, results_match_raxml_count_mean[a], color=color, alpha=0.4, linewidth=1.0,
+        ax1.plot(episode_nums, results_match_raxml_count[a], color=color, alpha=0.4, linewidth=1.0,
                  label="_agent_trace" if a > 0 else "Agents")
 
-    ax1.plot(episode_nums, np.mean(results_match_raxml_count_mean, axis=0), color=color, linewidth=2.0,
+    ax1.plot(episode_nums, results_match_raxml_count_mean, color=color, linewidth=2.0,
              label="Agents mean")
     ax1.fill_between(episode_nums,
                      results_match_raxml_count_mean - results_match_raxml_count_ci95,
