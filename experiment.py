@@ -46,7 +46,7 @@ n_cores = 5
 
 # Training parameters (shared)
 train_common = dict(
-    episodes=15_000,
+    episodes=10_000,
     horizon=20,
     n_agents=5,
     checkpoint_freq=1000,
@@ -76,10 +76,10 @@ rainbow_cfg = dict(
 soft_cfg = dict(
     replay_alpha=0.0,
     replay_beta_start=0.4,
-    replay_beta_frames=300_000,
+    replay_beta_frames=150_000,
     temp_alpha_init=4.0,
-    entropy_frames=300_000,
-    entropy_start=1.0,
+    entropy_frames=150_000,
+    entropy_start=0.9,
     entropy_end=0.5
 )
 
