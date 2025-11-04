@@ -45,6 +45,8 @@ def accuracy_over_checkpoints(evaluate_dir: Path, train_dataset: str, eval_datas
 
     results_match_raxml_count = np.sum(results_match_raxml, axis=3)
     results_match_raxml_count_mean = np.mean(results_match_raxml_count, axis=1)
+    results_match_raxml_count_std = np.std(results_match_raxml_count, axis=1)
+    results_match_raxml_count_ci95 = 1.96 * results_match_raxml_count_std / np.sqrt(n_samples)
 
     fig, ax1 = plt.subplots(figsize=(9, 5))
     ax1.set_xlabel("Episode")
@@ -57,6 +59,10 @@ def accuracy_over_checkpoints(evaluate_dir: Path, train_dataset: str, eval_datas
 
     ax1.plot(episode_nums, np.mean(results_match_raxml_count_mean, axis=0), color=color, linewidth=2.0,
              label="Agents mean")
+    ax1.fill_between(episode_nums,
+                     results_match_raxml_count_mean - results_match_raxml_count_ci95,
+                     results_match_raxml_count_mean + results_match_raxml_count_ci95,
+                     alpha=0.2, color=color, label="95% CI")
 
     ax1.tick_params(axis='y', labelcolor=color)
     ax1.legend(loc='lower left', fontsize=9)
@@ -70,7 +76,7 @@ def accuracy_over_checkpoints(evaluate_dir: Path, train_dataset: str, eval_datas
     )
 
     fig.tight_layout()
-    plot_file = "accuracy_plot.png"
+    plot_file = evaluate_dir / "accuracy_plot.png"
     fig.savefig(plot_file, dpi=150)
     plt.close(fig)
     print(f"Plot saved to {plot_file}")
