@@ -10,8 +10,8 @@ from soft_dqn_agent import SoftDQNAgent
 
 def train_agent_process(agent_id, samples_dir, raxmlng_path, episodes, horizon, checkpoint_dir,
                         checkpoint_freq, update_freq, hidden_dim, replay_size, replay_alpha, min_replay_start,
-                        learning_rate, gamma, temp_alpha_init, temp_alpha_frames, replay_beta_start,
-                        replay_beta_frames, tau, batch_size):
+                        learning_rate, gamma, temp_alpha_init, entropy_frames, entropy_start, entropy_end,
+                        replay_beta_start, replay_beta_frames, tau, batch_size):
     torch.set_num_threads(1)
 
     # Create environment for this process
@@ -34,8 +34,8 @@ def train_agent_process(agent_id, samples_dir, raxmlng_path, episodes, horizon, 
 
     # Target entropy schedule
     H_max = np.log(num_actions)
-    H_start = 0.9 * H_max
-    H_end = 0.01 * H_max
+    H_start = entropy_start * H_max
+    H_end = entropy_end * H_max
 
     for ep in range(episodes):
         tree_hash, feats = env.reset()
@@ -67,7 +67,7 @@ def train_agent_process(agent_id, samples_dir, raxmlng_path, episodes, horizon, 
             # Update less frequently
             step_counter += 1
             beta = min(1.0, replay_beta_start + step_counter * (1.0 - replay_beta_start) / replay_beta_frames)
-            target_entropy = max(H_end, H_start + step_counter * (H_end - H_start) / temp_alpha_frames)
+            target_entropy = max(H_end, H_start + step_counter * (H_end - H_start) / entropy_frames)
 
             if step_counter % update_freq == 0 and len(agent.replay) >= min_replay_start:
                 q_loss, policy_entropy = agent.update(batch_size, beta, target_entropy)
@@ -96,7 +96,7 @@ def train_agent_process(agent_id, samples_dir, raxmlng_path, episodes, horizon, 
 
 def soft_run_parallel_training(samples_dir, raxmlng_path, episodes, horizon, n_agents, n_cores, checkpoint_dir,
                                checkpoint_freq, update_freq, hidden_dim, replay_size, replay_alpha, min_replay_start,
-                               learning_rate, gamma, temp_alpha_init, temp_alpha_frames,
+                               learning_rate, gamma, temp_alpha_init, entropy_frames, entropy_start, entropy_end,
                                replay_beta_start, replay_beta_frames, tau, batch_size):
 
     # ---- Check for existing checkpoint directory ----
@@ -136,8 +136,11 @@ def soft_run_parallel_training(samples_dir, raxmlng_path, episodes, horizon, n_a
                                      replay_beta_start=replay_beta_start,
                                      replay_beta_frames=replay_beta_frames,
                                      temp_alpha_init=temp_alpha_init,
-                                     temp_alpha_frames=temp_alpha_frames,
-                                     tau=tau)
+                                     entropy_start=entropy_start,
+                                     entropy_end=entropy_end,
+                                     entropy_frames=entropy_frames,
+                                     tau=tau,
+                                     )
         for agent_id in range(n_agents)
     )
 

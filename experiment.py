@@ -78,7 +78,9 @@ soft_cfg = dict(
     replay_beta_start=0.4,
     replay_beta_frames=300_000,
     temp_alpha_init=4.0,
-    temp_alpha_frames=300_000
+    entropy_frames=300_000,
+    entropy_start=1.0,
+    entropy_end=0.5
 )
 
 # Hash full parameters for file names
