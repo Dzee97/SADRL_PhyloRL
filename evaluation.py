@@ -85,6 +85,20 @@ def accuracy_over_checkpoints(evaluate_dir: Path, train_dataset: str, eval_datas
     plt.close(fig)
     print(f"Plot saved to {plot_file}")
 
+    for c in range(n_checkpoints):
+        fig, ax1 = plt.subplots()
+        ax1.set_xlabel("Number of starting trees matching RAxML")
+        ax1.set_ylabel("Count")
+
+        ax1.hist(res_match_raxml_count_agent_mean[:, c], bins=n_start_trees)
+
+        ax1.set_title(f"Accuracy distibution over evaluation samples - checkpoint: {episode_nums[c]}")
+        fig.tight_layout()
+        plot_file = evaluate_dir / f"accuracy_hist_cp{episode_nums[c]}.png"
+        fig.savefig(plot_file, dpi=150)
+        plt.close(fig)
+        print(f"Histgram saved to {plot_file}")
+
 
 def plot_over_checkpoints(evaluate_dir: Path, dataset_name: str, algorithm_name: str):
     """
