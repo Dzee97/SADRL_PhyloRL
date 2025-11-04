@@ -32,7 +32,7 @@ class EvalAgent:
             return indices_sorted.cpu().numpy()
 
 
-def accuracy_over_checkpoints(evaluate_dir: Path):
+def accuracy_over_checkpoints(evaluate_dir: Path, train_dataset: str, eval_dataset: str, algorithm_name: str):
     results = np.load(evaluate_dir / "results.npy")
     test_mls_all = np.load(evaluate_dir / "test_mls_all.npy")
     episode_nums = np.load(evaluate_dir / "episode_nums.npy")
@@ -44,9 +44,36 @@ def accuracy_over_checkpoints(evaluate_dir: Path):
     results_match_raxml = results_max >= test_mls_all_expended - 0.1
 
     results_match_raxml_count = np.sum(results_match_raxml, axis=3)
-    results_match_raxml_count_median = np.median(results_match_raxml_count, axis=0)
+    results_match_raxml_count_mean = np.mean(results_match_raxml_count, axis=1)
 
-    return results_match_raxml_count_median
+    fig, ax1 = plt.subplots(figsize=(9, 5))
+    ax1.set_xlabel("Episode")
+    ax1.set_ylabel(f"Number of starting trees matching RAxML (out of {n_start_trees})")
+
+    color = 'tab:red'
+    for a in range(n_agents):
+        ax1.plot(episode_nums, results_match_raxml_count_mean[a], color=color, alpha=0.4, linewidth=1.0,
+                 label="_agent_trace" if a > 0 else "Agents")
+
+    ax1.plot(episode_nums, np.mean(results_match_raxml_count_mean, axis=0), color=color, linewidth=2.0,
+             label="Agents mean")
+
+    ax1.tick_params(axis='y', labelcolor=color)
+    ax1.legend(loc='lower left', fontsize=9)
+
+    ax1.set_xticks(episode_nums)
+    ax1.set_xticklabels(episode_nums, rotation=45)
+    ax1.grid(alpha=0.3)
+    ax1.set_title(
+        f"{algorithm_name} - Train Dataset: {train_dataset} - Eval Dataset: {eval_dataset}\n"
+        "Evaluation results across training checkpoints"
+    )
+
+    fig.tight_layout()
+    plot_file = "accuracy_plot.png"
+    fig.savefig(plot_file, dpi=150)
+    plt.close(fig)
+    print(f"Plot saved to {plot_file}")
 
 
 def plot_over_checkpoints(evaluate_dir: Path, dataset_name: str, algorithm_name: str):

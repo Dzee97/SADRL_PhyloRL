@@ -5,7 +5,8 @@ from functools import partial
 from sample_datasets import sample_dataset
 from train_multi_agents import run_parallel_training
 from soft_train_multi_agents import soft_run_parallel_training
-from evaluation import evaluate_checkpoints, plot_over_checkpoints, plot_final_checkpoint_tables
+from evaluation import evaluate_checkpoints, plot_over_checkpoints, plot_final_checkpoint_tables, \
+    accuracy_over_checkpoints
 
 
 # === CONFIGURATION ===
@@ -37,7 +38,7 @@ EXPERIMENTS = {
     #                                    num_rand_train_trees=100, num_rand_test_trees=20),
     "Size9Samples100Train100Test20": dict(sample_size=9, num_samples=100,
                                           num_rand_train_trees=100, num_rand_test_trees=20),
-    "Size9ValidationSet": dict(sample_size=9, num_samples=20, num_rand_train_trees=0, num_rand_test_trees=20),
+    "Size9ValidationSet50": dict(sample_size=9, num_samples=20, num_rand_train_trees=0, num_rand_test_trees=50),
 }
 
 # Set number of cores for parallel agent training and evaluation
@@ -159,7 +160,7 @@ def run_evaluation(eval_dqn, eval_soft, set_type="test"):
         # Evaluate checkpoints on test trees on self, and on validation datasets with only test trees
         evaluate_samples_dirs = {n: BASE_DIR / n for n,
                                  c in EXPERIMENTS.items() if (n == name or c["num_rand_train_trees"] == 0)
-                                 and c["num_samples"] <= 20}
+                                 and c["num_samples"] <= 50}
 
         for eval_name, evaluate_samples_dir in evaluate_samples_dirs.items():
             if eval_dqn:
@@ -172,8 +173,8 @@ def run_evaluation(eval_dqn, eval_soft, set_type="test"):
                     checkpoints_dir=checkpoints_dir,
                     evaluate_dir=evaluate_dir
                 )
-                plot_over_checkpoints(evaluate_dir=evaluate_dir, dataset_name=name, algorithm_name="DQN")
-                plot_final_checkpoint_tables(evaluate_dir=evaluate_dir, dataset_name=name, algorithm_name="DQN")
+                # plot_over_checkpoints(evaluate_dir=evaluate_dir, dataset_name=name, algorithm_name="DQN")
+                # plot_final_checkpoint_tables(evaluate_dir=evaluate_dir, dataset_name=name, algorithm_name="DQN")
             if eval_soft:
                 checkpoints_dir = samples_dir / f"soft_{soft_cfg_hash}" / "checkpoints"
                 evaluate_dir = samples_dir / f"soft_{soft_cfg_hash}" / \
@@ -184,9 +185,11 @@ def run_evaluation(eval_dqn, eval_soft, set_type="test"):
                     checkpoints_dir=checkpoints_dir,
                     evaluate_dir=evaluate_dir
                 )
-                plot_over_checkpoints(evaluate_dir=evaluate_dir, dataset_name=name, algorithm_name="Soft Q-Learning")
-                plot_final_checkpoint_tables(evaluate_dir=evaluate_dir, dataset_name=name,
-                                             algorithm_name="Soft Q-Learning")
+                # plot_over_checkpoints(evaluate_dir=evaluate_dir, dataset_name=name, algorithm_name="Soft Q-Learning")
+                # plot_final_checkpoint_tables(evaluate_dir=evaluate_dir, dataset_name=name,
+                #                             algorithm_name="Soft Q-Learning")
+                accuracy_over_checkpoints(evaluate_dir=evaluate_dir, train_dataset=name, eval_dataset=eval_name,
+                                          algorithm_name="Soft Q-Learning")
 
 
 # === MAIN EXECUTION ===
