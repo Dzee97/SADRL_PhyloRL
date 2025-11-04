@@ -90,7 +90,7 @@ def accuracy_over_checkpoints(evaluate_dir: Path, train_dataset: str, eval_datas
         ax1.set_xlabel("Number of starting trees matching RAxML")
         ax1.set_ylabel("Count")
 
-        ax1.hist(res_match_raxml_count_agent_mean[:, c], bins=[0, 1, 6, 11, 16, 20])
+        ax1.hist(res_match_raxml_count_agent_mean[:, c], bins=10)
 
         ax1.set_title(f"Accuracy distibution over evaluation samples - checkpoint: {episode_nums[c]}")
         fig.tight_layout()
