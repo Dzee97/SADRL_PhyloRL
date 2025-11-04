@@ -192,7 +192,7 @@ class SoftDQNAgent:
         self.alpha_optimizer.zero_grad()
         alpha_loss.backward()
         self.alpha_optimizer.step()
-        self.log_alpha.data.clamp_(min=-10.0, max=2.0)
+        # self.log_alpha.data.clamp_(min=-10.0, max=2.0)
 
         # Update PER priorities
         new_prios = 0.5 * (td_error1.abs() + td_error2.abs()).detach() + 1e-6
