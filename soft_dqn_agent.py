@@ -92,7 +92,7 @@ class PrioritizedReplayBuffer:
 
 
 class SoftDQNAgent:
-    def __init__(self, feature_dim, hidden_dim, learning_rate, gamma, tau,
+    def __init__(self, feature_dim, hidden_dim, learning_rate, weight_decay, gamma, tau,
                  temp_alpha_init, replay_size, replay_alpha, device=None):
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
         self.gamma = gamma
@@ -116,8 +116,8 @@ class SoftDQNAgent:
         self.target_q1.eval()
         self.target_q2.eval()
 
-        self.optimizer1 = optim.Adam(self.q1.parameters(), lr=learning_rate)
-        self.optimizer2 = optim.Adam(self.q2.parameters(), lr=learning_rate)
+        self.optimizer1 = optim.AdamW(self.q1.parameters(), lr=learning_rate, weight_decay=weight_decay)
+        self.optimizer2 = optim.AdamW(self.q2.parameters(), lr=learning_rate, weight_decay=weight_decay)
 
         self.replay = PrioritizedReplayBuffer(replay_size, replay_alpha, self.device)
 

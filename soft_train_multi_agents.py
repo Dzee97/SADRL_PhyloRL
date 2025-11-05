@@ -10,7 +10,7 @@ from soft_dqn_agent import SoftDQNAgent
 
 def train_agent_process(agent_id, samples_dir, raxmlng_path, episodes, horizon, checkpoint_dir,
                         checkpoint_freq, update_freq, hidden_dim, replay_size, replay_alpha, min_replay_start,
-                        learning_rate, gamma, temp_alpha_init, entropy_frames, entropy_start, entropy_end,
+                        learning_rate, weight_decay, gamma, temp_alpha_init, entropy_frames, entropy_start, entropy_end,
                         replay_beta_start, replay_beta_frames, tau, batch_size):
     torch.set_num_threads(1)
 
@@ -24,6 +24,7 @@ def train_agent_process(agent_id, samples_dir, raxmlng_path, episodes, horizon, 
     agent = SoftDQNAgent(feature_dim=feature_dim,
                          hidden_dim=hidden_dim,
                          learning_rate=learning_rate,
+                         weight_decay=weight_decay,
                          gamma=gamma,
                          tau=tau,
                          temp_alpha_init=temp_alpha_init,
@@ -96,8 +97,8 @@ def train_agent_process(agent_id, samples_dir, raxmlng_path, episodes, horizon, 
 
 def soft_run_parallel_training(samples_dir, raxmlng_path, episodes, horizon, n_agents, n_cores, checkpoint_dir,
                                checkpoint_freq, update_freq, hidden_dim, replay_size, replay_alpha, min_replay_start,
-                               learning_rate, gamma, temp_alpha_init, entropy_frames, entropy_start, entropy_end,
-                               replay_beta_start, replay_beta_frames, tau, batch_size):
+                               learning_rate, weight_decay, gamma, temp_alpha_init, entropy_frames,
+                               entropy_start, entropy_end, replay_beta_start, replay_beta_frames, tau, batch_size):
 
     # ---- Check for existing checkpoint directory ----
     if checkpoint_dir.exists():
@@ -131,6 +132,7 @@ def soft_run_parallel_training(samples_dir, raxmlng_path, episodes, horizon, n_a
                                      hidden_dim=hidden_dim,
                                      gamma=gamma,
                                      learning_rate=learning_rate,
+                                     weight_decay=weight_decay,
                                      replay_size=replay_size,
                                      replay_alpha=replay_alpha,
                                      replay_beta_start=replay_beta_start,
