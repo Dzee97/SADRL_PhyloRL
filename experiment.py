@@ -46,7 +46,7 @@ n_cores = 5
 
 # Training parameters (shared)
 train_common = dict(
-    episodes=15_000,
+    episodes=20_000,
     horizon=20,
     n_agents=5,
     checkpoint_freq=1000,
