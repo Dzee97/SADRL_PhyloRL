@@ -8,11 +8,12 @@ from pathlib import Path
 
 
 class QNetwork(nn.Module):
-    def __init__(self, input_dim, hidden_dim):
+    def __init__(self, input_dim, hidden_dim, dropout_p=0.0):
         super().__init__()
         self.net = nn.Sequential(
             nn.Linear(input_dim, hidden_dim),
             nn.ReLU(),
+            nn.Dropout(dropout_p),
             nn.Linear(hidden_dim, hidden_dim),
             nn.ReLU(),
             nn.Linear(hidden_dim, hidden_dim),
@@ -92,7 +93,7 @@ class PrioritizedReplayBuffer:
 
 
 class SoftDQNAgent:
-    def __init__(self, feature_dim, hidden_dim, learning_rate, weight_decay, gamma, tau,
+    def __init__(self, feature_dim, hidden_dim, dropout_p, learning_rate, weight_decay, gamma, tau,
                  temp_alpha_init, replay_size, replay_alpha, device=None):
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
         self.gamma = gamma
@@ -106,8 +107,8 @@ class SoftDQNAgent:
         self.alpha_optimizer = optim.Adam([self.log_alpha], lr=3e-4)
 
         # Clipped double Q networks
-        self.q1 = QNetwork(feature_dim, hidden_dim).to(self.device)
-        self.q2 = QNetwork(feature_dim, hidden_dim).to(self.device)
+        self.q1 = QNetwork(feature_dim, hidden_dim, dropout_p).to(self.device)
+        self.q2 = QNetwork(feature_dim, hidden_dim, dropout_p).to(self.device)
         self.target_q1 = QNetwork(feature_dim, hidden_dim).to(self.device)
         self.target_q2 = QNetwork(feature_dim, hidden_dim).to(self.device)
 
