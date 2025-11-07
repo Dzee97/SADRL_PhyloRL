@@ -46,7 +46,7 @@ n_cores = 5
 
 # Training parameters (shared)
 train_common = dict(
-    episodes=20_000,
+    episodes=30_000,
     horizon=20,
     n_agents=5,
     checkpoint_freq=1000,
@@ -56,7 +56,7 @@ train_common = dict(
     dropout_p=0.2,
     replay_size=10_000,
     min_replay_start=1000,
-    learning_rate=5e-5,
+    learning_rate=1e-5,
     weight_decay=1e-2,
     gamma=0.9,
     tau=0.005
@@ -78,9 +78,9 @@ rainbow_cfg = dict(
 soft_cfg = dict(
     replay_alpha=0.0,
     replay_beta_start=0.4,
-    replay_beta_frames=300_000,
+    replay_beta_frames=600_000,
     temp_alpha_init=4.0,
-    entropy_frames=300_000,
+    entropy_frames=600_000,
     entropy_start=0.5,
     entropy_end=0.5
 )
