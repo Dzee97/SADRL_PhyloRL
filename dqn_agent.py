@@ -50,7 +50,7 @@ class DQNAgent:
     def select_actions(self, state_action_feats, temp, num_actions):
         with torch.no_grad():
             feats_t = torch.tensor(state_action_feats, dtype=torch.float32, device=self.device)
-            q_values = self.q1(feats_t).squeeze(-1)  # shape [num_actions]
+            q_values = self.q_net(feats_t).squeeze(-1)  # shape [num_actions]
 
             probs = torch.softmax(q_values / temp, dim=0)
             num_actions = min(num_actions, len(probs))
