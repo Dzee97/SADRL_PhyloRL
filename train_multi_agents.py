@@ -8,8 +8,8 @@ from dqn_agent import DQNAgent
 
 
 def train_agent_process(agent_id, samples_dir, raxmlng_path, episodes, horizon, checkpoint_dir,
-                        checkpoint_freq, update_freq, hidden_dim, replay_size, min_replay_start, learning_rate,
-                        gamma, temp, tau, batch_size):
+                        checkpoint_freq, update_freq, hidden_dim, dropout_p, replay_size, min_replay_start,
+                        learning_rate, weight_decay, gamma, temp, tau, batch_size):
     torch.set_num_threads(1)
 
     # Create environment for this process
@@ -20,7 +20,9 @@ def train_agent_process(agent_id, samples_dir, raxmlng_path, episodes, horizon, 
     # Initialize DQN agent
     agent = DQNAgent(feature_dim=feature_dim,
                      hidden_dim=hidden_dim,
+                     dropout_p=dropout_p,
                      learning_rate=learning_rate,
+                     weight_decay=weight_decay,
                      gamma=gamma,
                      tau=tau,
                      replay_size=replay_size)
@@ -36,7 +38,13 @@ def train_agent_process(agent_id, samples_dir, raxmlng_path, episodes, horizon, 
         done = False
 
         while not done:
-            action_idx = agent.select_action(feats, temp)
+            # Sample actions equal to number of current visited trees
+            action_idxs = agent.select_actions(feats, temp, num_actions=len(trees_visited))
+            for action_idx in action_idxs:
+                # Preview neighbor trees from actions and select first action giving an unvisited tree
+                preview_tree_hash = env.preview_step(action_idx, calc_reward=False)
+                if preview_tree_hash not in trees_visited:
+                    break
             feat_vec = feats[action_idx]
             next_tree_hash, next_feats, reward, done = env.step(action_idx)
 
@@ -74,8 +82,8 @@ def train_agent_process(agent_id, samples_dir, raxmlng_path, episodes, horizon, 
 
 
 def run_parallel_training(samples_dir, raxmlng_path, episodes, horizon, n_agents, n_cores, checkpoint_dir,
-                          checkpoint_freq, update_freq, hidden_dim, replay_size, min_replay_start, learning_rate, gamma,
-                          temp, tau, batch_size):
+                          checkpoint_freq, update_freq, hidden_dim, dropout_p, replay_size, min_replay_start,
+                          learning_rate, weight_decay, gamma, temp, tau, batch_size):
 
     # ---- Check for existing checkpoint directory ----
     if checkpoint_dir.exists():
@@ -109,6 +117,8 @@ def run_parallel_training(samples_dir, raxmlng_path, episodes, horizon, n_agents
                                      hidden_dim=hidden_dim,
                                      replay_size=replay_size,
                                      learning_rate=learning_rate,
+                                     dropout_p=dropout_p,
+                                     weight_decay=weight_decay,
                                      gamma=gamma,
                                      temp=temp,
                                      tau=tau)

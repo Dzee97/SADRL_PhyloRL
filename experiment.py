@@ -179,6 +179,8 @@ def run_evaluation(eval_dqn, eval_soft, set_type="test"):
                 )
                 # plot_over_checkpoints(evaluate_dir=evaluate_dir, dataset_name=name, algorithm_name="DQN")
                 # plot_final_checkpoint_tables(evaluate_dir=evaluate_dir, dataset_name=name, algorithm_name="DQN")
+                accuracy_over_checkpoints(evaluate_dir=evaluate_dir, train_dataset=name, eval_dataset=eval_name,
+                                          algorithm_name="DQN")
             if eval_soft:
                 checkpoints_dir = samples_dir / f"soft_{soft_cfg_hash}" / "checkpoints"
                 evaluate_dir = samples_dir / f"soft_{soft_cfg_hash}" / \
@@ -204,8 +206,8 @@ if __name__ == "__main__":
     RUN_EVALUATION = True
 
     # toggle these flags to control which algorithms to run
-    DQN = False
-    SOFT = True
+    DQN = True
+    SOFT = False
 
     if RUN_SAMPLING:
         run_sampling()

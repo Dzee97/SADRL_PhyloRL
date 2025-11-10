@@ -4,28 +4,11 @@ from collections import deque
 from pathlib import Path
 
 import torch
-import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as func
 
-# ------------------------- DQN NETWORK -------------------------
+from soft_dqn_agent import QNetwork
 
-
-class QNetwork(nn.Module):
-    def __init__(self, input_dim, hidden_dim):
-        super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(input_dim, hidden_dim),
-            nn.ReLU(),
-            nn.Linear(hidden_dim, hidden_dim),
-            nn.ReLU(),
-            nn.Linear(hidden_dim, hidden_dim),
-            nn.ReLU(),
-            nn.Linear(hidden_dim, 1)
-        )
-
-    def forward(self, x):
-        return self.net(x).squeeze(-1)
 
 # ------------------------- REPLAY BUFFER -------------------------
 
@@ -50,31 +33,30 @@ class ReplayBuffer:
 
 
 class DQNAgent:
-    def __init__(self, feature_dim, hidden_dim, learning_rate, gamma, tau, replay_size, device=None):
+    def __init__(self, feature_dim, hidden_dim, dropout_p, learning_rate, weight_decay, gamma, tau, replay_size,
+                 device=None):
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
         self.gamma = gamma
         self.tau = tau
         self.step_count = 0
 
-        self.q_net = QNetwork(feature_dim, hidden_dim).to(self.device)
+        self.q_net = QNetwork(feature_dim, hidden_dim, dropout_p).to(self.device)
         self.target_net = QNetwork(feature_dim, hidden_dim).to(self.device)
         self.target_net.load_state_dict(self.q_net.state_dict())
 
-        self.optimizer = optim.Adam(self.q_net.parameters(), lr=learning_rate)
+        self.optimizer = optim.AdamW(self.q_net.parameters(), lr=learning_rate, weight_decay=weight_decay)
         self.replay = ReplayBuffer(replay_size)
 
-    def select_action(self, state_action_feats, temp, eval_mode=False):
+    def select_actions(self, state_action_feats, temp, num_actions):
         with torch.no_grad():
             feats_t = torch.tensor(state_action_feats, dtype=torch.float32, device=self.device)
-            q_values = self.q_net(feats_t).squeeze(-1)  # shape [num_actions]
+            q_values = self.q1(feats_t).squeeze(-1)  # shape [num_actions]
 
-            if eval_mode:
-                action = torch.argmax(q_values).item()
-            else:
-                probs = torch.softmax(q_values / temp, dim=0)
-                action = torch.multinomial(probs, 1).item()
+            probs = torch.softmax(q_values / temp, dim=0)
+            num_actions = min(num_actions, len(probs))
+            actions = torch.multinomial(probs, num_actions, replacement=False).cpu().numpy()
 
-            return action
+            return actions
 
     def update(self, batch_size):
         if len(self.replay) < batch_size:
