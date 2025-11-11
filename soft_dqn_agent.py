@@ -89,10 +89,93 @@ class PrioritizedReplayBuffer:
     def __len__(self):
         return self.capacity if self.full else self.pos
 
-# ------------------------- SOFT DQN AGENT (CLIPPED DOUBLE Q) -------------------------
+# ------------------------- DQN AGENT -------------------------
 
 
-class SoftDQNAgent:
+class DQNAgent:
+    def __init__(self, feature_dim, hidden_dim, dropout_p, learning_rate, weight_decay, gamma, tau,
+                 replay_size, replay_alpha, double_q, device=None):
+        self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
+        self.gamma = gamma
+        self.tau = tau
+        self.double_q = double_q
+
+        # Q network and target network
+        self.q_net = QNetwork(feature_dim, hidden_dim, dropout_p).to(self.device)
+        self.target_net = QNetwork(feature_dim, hidden_dim).to(self.device)
+        self.target_net.load_state_dict(self.q_net.state_dict())
+
+        self.optimizer = optim.AdamW(self.q_net.parameters(), lr=learning_rate, weight_decay=weight_decay)
+        self.replay = PrioritizedReplayBuffer(replay_size, replay_alpha, self.device)
+
+    def select_actions(self, state_action_feats, temp, num_actions):
+        with torch.no_grad():
+            feats_t = torch.tensor(state_action_feats, dtype=torch.float32, device=self.device)
+            q_values = self.q_net(feats_t).squeeze(-1)  # shape [num_actions]
+
+            probs = torch.softmax(q_values / temp, dim=0)
+            num_actions = min(num_actions, len(probs))
+            actions = torch.multinomial(probs, num_actions, replacement=False).cpu().numpy()
+
+            return actions
+
+    def update(self, batch_size, beta):
+        if len(self.replay) < batch_size:
+            return None
+
+        feats, rewards, next_feats, dones, indices, weights = self.replay.sample(batch_size, beta)
+
+        # Current Q-values
+        q_vals = self.q_net(feats)
+
+        # Compute target values
+        with torch.no_grad():
+            B, N, F = next_feats.shape
+            next_feats_flat = next_feats.view(B * N, F)
+
+            if self.double_q:
+                # Double Q-learning: use online network to select actions
+                q_next_online = self.q_net(next_feats_flat).view(B, N)
+                best_actions = q_next_online.argmax(dim=1)  # (B,)
+
+                # Use target network to evaluate selected actions
+                q_next_target = self.target_net(next_feats_flat).view(B, N)
+                q_next_max = q_next_target.gather(1, best_actions.unsqueeze(1)).squeeze(1)  # (B,)
+            else:
+                # Standard DQN: use target network for both selection and evaluation
+                q_next_flat = self.target_net(next_feats_flat).view(B, N)
+                q_next_max = q_next_flat.max(dim=1)[0]  # (B,)
+
+            q_target = rewards + self.gamma * (1 - dones) * q_next_max
+
+        # TD loss
+        td_error = q_target - q_vals
+        loss = (weights * td_error.pow(2)).mean()
+
+        # Update Q-network
+        self.optimizer.zero_grad()
+        loss.backward()
+        self.optimizer.step()
+
+        # Update PER priorities
+        new_prios = td_error.abs().detach() + 1e-6
+        self.replay.update_priorities(indices, new_prios)
+
+        # Update target network
+        for t_p, p in zip(self.target_net.parameters(), self.q_net.parameters()):
+            t_p.data.lerp_(p.data, self.tau)
+
+        return loss.item()
+
+    def save(self, path: Path):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        torch.save(self.q_net.state_dict(), str(path))
+
+
+# ------------------------- SOFT Q-learning AGENT (CLIPPED DOUBLE Q) -------------------------
+
+
+class SoftQAgent:
     def __init__(self, feature_dim, hidden_dim, dropout_p, learning_rate, weight_decay, gamma, tau,
                  temp_alpha_init, replay_size, replay_alpha, device=None):
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
