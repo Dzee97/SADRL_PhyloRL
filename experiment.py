@@ -192,8 +192,8 @@ def run_evaluation(eval_dqn, eval_soft, set_type="test"):
                     evaluate_dir=evaluate_dir
                 )
                 # plot_over_checkpoints(evaluate_dir=evaluate_dir, dataset_name=name, algorithm_name="Soft Q-Learning")
-                # plot_final_checkpoint_tables(evaluate_dir=evaluate_dir, dataset_name=name,
-                #                             algorithm_name="Soft Q-Learning")
+                plot_final_checkpoint_tables(evaluate_dir=evaluate_dir, dataset_name=name,
+                                             algorithm_name="Soft Q-Learning")
                 accuracy_over_checkpoints(evaluate_dir=evaluate_dir, train_dataset=name, eval_dataset=eval_name,
                                           algorithm_name="Soft Q-Learning")
 
@@ -206,8 +206,8 @@ if __name__ == "__main__":
     RUN_EVALUATION = True
 
     # toggle these flags to control which algorithms to run
-    DQN = True
-    SOFT = False
+    DQN = False
+    SOFT = True
 
     if RUN_SAMPLING:
         run_sampling()
