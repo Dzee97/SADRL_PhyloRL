@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
 from pathlib import Path
 from environment import PhyloEnv
-from soft_dqn_agent import QNetwork
+from agents import QNetwork
 
 
 class EvalAgent:

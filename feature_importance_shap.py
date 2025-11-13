@@ -5,7 +5,7 @@ import shap
 from pathlib import Path
 from tqdm import tqdm
 from environment import PhyloEnv
-from soft_dqn_agent import QNetwork
+from agents import QNetwork
 
 
 class FeatureImportanceAnalyzer:
