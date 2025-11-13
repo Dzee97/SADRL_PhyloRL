@@ -2,6 +2,7 @@ import os
 import shutil
 import torch
 import numpy as np
+from pprint import pprint
 from joblib import Parallel, delayed
 from pathlib import Path
 from environment import PhyloEnv
@@ -196,7 +197,9 @@ def run_parallel_training(algorithm, samples_dir, raxmlng_path, n_agents, n_core
         raise ValueError("Invalid alogirhtm name")
 
     print(f"🚀 Launching {n_agents} agents on {n_cores} cores")
-    print(f"   Algorithm: {algorithm}, Hyperparameters: {training_hps}")
+    print(f"   Algorithm: {algorithm}")
+    print("   Hyperparameters:")
+    pprint(training_hps)
 
     Parallel(n_jobs=n_cores, backend="loky", verbose=0)(
         delayed(train_agent_process)(agent_id=agent_id,
