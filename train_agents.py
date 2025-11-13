@@ -170,7 +170,7 @@ def train_softq_agent_process(agent_id, samples_dir, raxmlng_path, episodes, hor
 
     # Save final model
     agent.save(Path(checkpoint_dir) / f"agent_{agent_id}_final.pt")
-    print(f"[Agent {agent_id}] Finished]")
+    print(f"[Agent {agent_id}] Finished")
 
 
 def run_parallel_training(algorithm, samples_dir, raxmlng_path, n_agents, n_cores, checkpoint_dir, training_hps):
