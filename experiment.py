@@ -41,12 +41,13 @@ EXPERIMENTS = {
 
 # Set number of cores for parallel agent training and evaluation
 n_cores = 5
+# Set number of agents to train in parallel
+n_agents = 5
 
 # Training parameters (shared)
 train_common = dict(
     episodes=20_000,
     horizon=20,
-    n_agents=5,
     checkpoint_freq=1000,
     update_freq=1,
     batch_size=128,
@@ -126,7 +127,7 @@ def run_training(algorithm):
         raise ValueError("Invalid alogirhtm name")
 
     train_fn = partial(run_parallel_training, algorithm=algorithm, raxmlng_path=raxmlng_path, n_cores=n_cores,
-                       training_hps=training_hps)
+                       n_agents=n_agents, training_hps=training_hps)
 
     for name, cfg in EXPERIMENTS.items():
         # Don't train when the dataset has no training trees
