@@ -126,7 +126,7 @@ def run_training(algorithm):
         raise ValueError("Invalid alogirhtm name")
 
     train_fn = partial(run_parallel_training, algorithm=algorithm, raxmlng_path=raxmlng_path, n_cores=n_cores,
-                       **training_hps)
+                       training_hps=training_hps)
 
     for name, cfg in EXPERIMENTS.items():
         # Don't train when the dataset has no training trees
