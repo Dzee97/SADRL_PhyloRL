@@ -199,7 +199,7 @@ def run_parallel_training(algorithm, samples_dir, raxmlng_path, n_agents, n_core
     print(f"🚀 Launching {n_agents} agents on {n_cores} cores")
     print(f"   Algorithm: {algorithm}")
     print("   Hyperparameters:")
-    pprint(training_hps)
+    pprint(training_hps, indent=4)
 
     Parallel(n_jobs=n_cores, backend="loky", verbose=0)(
         delayed(train_agent_process)(agent_id=agent_id,
