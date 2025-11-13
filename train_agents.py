@@ -2,7 +2,6 @@ import os
 import shutil
 import torch
 import numpy as np
-from pprint import pprint
 from joblib import Parallel, delayed
 from pathlib import Path
 from environment import PhyloEnv
@@ -74,7 +73,7 @@ def train_dqn_agent_process(agent_id, samples_dir, raxmlng_path, episodes, horiz
         # Log less frequently
         if (ep + 1) % 10 == 0:
             print(f"[Agent {agent_id}] Ep {ep+1}/{episodes} | Highest Return: {highest_return:.3f} | "
-                  f"RAxML-NG Diff: {highest_return - raxml_return:.3f} | Beta: {beta:.3f} | Q loss: {q_loss:.3f} | "
+                  f"RAxML-NG Diff: {highest_return - raxml_return:.3f} | ER Beta: {beta:.3f} | Q loss: {q_loss:.3f} | "
                   f"Cache hits: {env.cache_hits} | Cache size: {len(env.tree_cache)}")
 
         # Periodic saving
@@ -160,9 +159,9 @@ def train_softq_agent_process(agent_id, samples_dir, raxmlng_path, episodes, hor
         # Log less frequently
         if (ep + 1) % 10 == 0:
             print(f"[Agent {agent_id}] Ep {ep+1}/{episodes} | Highest Return: {highest_return:.3f} | "
-                  f"RAxML-NG Diff: {highest_return - raxml_return:.3f} | Beta: {beta:.3f} | Alpha: {agent.alpha:.3f} | "
-                  f"Policy Ent: {policy_entropy:.3f} | Target Ent: {target_entropy:.3f} | Q loss: {q_loss:.3f} | "
-                  f"Cache hits: {env.cache_hits} | Cache size: {len(env.tree_cache)}")
+                  f"RAxML-NG Diff: {highest_return - raxml_return:.3f} | ER Beta: {beta:.3f} | "
+                  f"Alpha: {agent.alpha:.3f} | Policy Ent: {policy_entropy:.3f} | Target Ent: {target_entropy:.3f} | "
+                  f"Q loss: {q_loss:.3f} | Cache hits: {env.cache_hits} | Cache size: {len(env.tree_cache)}")
 
         # Periodic saving
         if (ep + 1) % checkpoint_freq == 0:
