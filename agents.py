@@ -247,7 +247,7 @@ class SoftQAgent:
             q_min = torch.min(q1_next, q2_next)
 
             alpha = self.log_alpha.exp()
-            soft_value = self.alpha * torch.logsumexp(q_min / alpha, dim=1)
+            soft_value = alpha * torch.logsumexp(q_min / alpha, dim=1)
             q_target = rewards + self.gamma * (1 - dones) * soft_value
 
         # TD losses
