@@ -85,14 +85,6 @@ soft_cfg = dict(
 full_dqn_cfg = train_common | dqn_cfg
 full_soft_cfg = train_common | soft_cfg
 
-
-def stable_hash(cfg):
-    return hashlib.md5(json.dumps(cfg, sort_keys=True).encode()).hexdigest()[:8]
-
-
-dqn_cfg_hash = stable_hash(full_dqn_cfg)
-soft_cfg_hash = stable_hash(full_soft_cfg)
-
 # Evaluation config
 evaluate_cfg = dict(
     hidden_dim=train_common["hidden_dim"],
@@ -104,6 +96,10 @@ evaluate_cfg = dict(
 
 
 # === HELPER FUNCTIONS ===
+
+def stable_hash(cfg):
+    return hashlib.md5(json.dumps(cfg, sort_keys=True).encode()).hexdigest()[:8]
+
 
 def run_sampling():
     """Run dataset sampling for all experiment sets."""
@@ -126,6 +122,8 @@ def run_training(algorithm):
     else:
         raise ValueError("Invalid alogirhtm name")
 
+    hps_hash = stable_hash(training_hps)
+
     train_fn = partial(run_parallel_training, algorithm=algorithm, raxmlng_path=raxmlng_path, n_cores=n_cores,
                        n_agents=n_agents, training_hps=training_hps)
 
@@ -136,7 +134,7 @@ def run_training(algorithm):
 
         samples_dir = BASE_DIR / name
 
-        cfg_dir = samples_dir / f"{algorithm}_{soft_cfg_hash}"
+        cfg_dir = samples_dir / f"{algorithm}_{hps_hash}"
         cfg_dir.mkdir(parents=True, exist_ok=True)
         (cfg_dir / "config.json").write_text(json.dumps(training_hps, indent=4))
         train_fn(samples_dir=samples_dir, checkpoint_dir=cfg_dir / "checkpoints")
@@ -145,6 +143,16 @@ def run_training(algorithm):
 def run_evaluation(algorithm, set_type="test"):
     """Evaluate trained checkpoints on train/test sets."""
     print("\n=== Evaluating agents ===")
+
+    if algorithm == "DQN":
+        training_hps = full_dqn_cfg
+    elif algorithm == "SQL":
+        training_hps = full_soft_cfg
+    else:
+        raise ValueError("Invalid alogirhtm name")
+
+    hps_hash = stable_hash(training_hps)
+
     evaluate_fn = partial(evaluate_checkpoints, **evaluate_cfg)
 
     for name, cfg in EXPERIMENTS.items():
@@ -160,8 +168,8 @@ def run_evaluation(algorithm, set_type="test"):
                                  and c["num_samples"] <= 50}
 
         for eval_name, evaluate_samples_dir in evaluate_samples_dirs.items():
-            checkpoints_dir = samples_dir / f"{algorithm}_{soft_cfg_hash}" / "checkpoints"
-            evaluate_dir = samples_dir / f"{algorithm}_{soft_cfg_hash}" / \
+            checkpoints_dir = samples_dir / f"{algorithm}_{hps_hash}" / "checkpoints"
+            evaluate_dir = samples_dir / f"{algorithm}_{hps_hash}" / \
                 f"evaluate_{eval_name}_topk{evaluate_cfg['top_k_reward']}"
             evaluate_fn(
                 samples_dir=evaluate_samples_dir,
