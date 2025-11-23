@@ -36,7 +36,7 @@ EXPERIMENTS = {
     #                                    num_rand_train_trees=100, num_rand_test_trees=20),
     "Size9Samples100Train100Test20": dict(sample_size=9, num_samples=100,
                                           num_rand_train_trees=100, num_rand_test_trees=20),
-    "Size9ValidationSet50": dict(sample_size=9, num_samples=20, num_rand_train_trees=0, num_rand_test_trees=50),
+    "Size9ValidationSet50": dict(sample_size=9, num_samples=50, num_rand_train_trees=0, num_rand_test_trees=20),
 }
 
 # Set number of cores for parallel agent training and evaluation
