@@ -34,7 +34,11 @@ EXPERIMENTS = {
     # Sample size 9
     # "Size9Samples1Train100Test20": dict(sample_size=9, num_samples=1,
     #                                    num_rand_train_trees=100, num_rand_test_trees=20),
+    "Size9Samples50Train100Test20": dict(sample_size=9, num_samples=50,
+                                         num_rand_train_trees=100, num_rand_test_trees=20),
     "Size9Samples100Train100Test20": dict(sample_size=9, num_samples=100,
+                                          num_rand_train_trees=100, num_rand_test_trees=20),
+    "Size9Samples500Train100Test20": dict(sample_size=9, num_samples=500,
                                           num_rand_train_trees=100, num_rand_test_trees=20),
     "Size9ValidationSet50": dict(sample_size=9, num_samples=50, num_rand_train_trees=0, num_rand_test_trees=20),
 }
