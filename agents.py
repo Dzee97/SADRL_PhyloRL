@@ -8,8 +8,14 @@ from pathlib import Path
 
 
 class QNetwork(nn.Module):
-    def __init__(self, input_dim, hidden_dim, dropout_p=0.0):
+    def __init__(self, input_dim, hidden_dim, dropout_p=0.0, layernorm=False):
         super().__init__()
+
+        if layernorm:
+            self.ln = nn.LayerNorm(input_dim)
+        else:
+            self.ln = nn.Identity()
+
         self.net = nn.Sequential(
             nn.Linear(input_dim, hidden_dim),
             nn.ReLU(),
@@ -22,6 +28,7 @@ class QNetwork(nn.Module):
         )
 
     def forward(self, x):
+        x = self.ln(x)
         return self.net(x).squeeze(-1)
 
 # ------------------------- PRIORITIZED REPLAY BUFFER -------------------------
@@ -93,7 +100,7 @@ class PrioritizedReplayBuffer:
 
 
 class DQNAgent:
-    def __init__(self, feature_dim, hidden_dim, dropout_p, learning_rate, weight_decay, gamma, tau,
+    def __init__(self, feature_dim, hidden_dim, dropout_p, layernorm, learning_rate, weight_decay, gamma, tau,
                  replay_size, replay_alpha, double_q, device=None):
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
         self.gamma = gamma
@@ -101,9 +108,10 @@ class DQNAgent:
         self.double_q = double_q
 
         # Q network and target network
-        self.q_net = QNetwork(feature_dim, hidden_dim, dropout_p).to(self.device)
-        self.target_net = QNetwork(feature_dim, hidden_dim).to(self.device)
+        self.q_net = QNetwork(feature_dim, hidden_dim, dropout_p, layernorm).to(self.device)
+        self.target_net = QNetwork(feature_dim, hidden_dim, dropout_p, layernorm).to(self.device)
         self.target_net.load_state_dict(self.q_net.state_dict())
+        self.target_net.eval()
 
         self.optimizer = optim.AdamW(self.q_net.parameters(), lr=learning_rate, weight_decay=weight_decay)
         self.replay = PrioritizedReplayBuffer(replay_size, replay_alpha, self.device)
@@ -176,7 +184,7 @@ class DQNAgent:
 
 
 class SoftQAgent:
-    def __init__(self, feature_dim, hidden_dim, dropout_p, learning_rate, weight_decay, gamma, tau,
+    def __init__(self, feature_dim, hidden_dim, dropout_p, layernorm, learning_rate, weight_decay, gamma, tau,
                  temp_alpha_init, replay_size, replay_alpha, device=None):
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
         self.gamma = gamma
@@ -190,10 +198,10 @@ class SoftQAgent:
         self.alpha_optimizer = optim.Adam([self.log_alpha], lr=3e-4)
 
         # Clipped double Q networks
-        self.q1 = QNetwork(feature_dim, hidden_dim, dropout_p).to(self.device)
-        self.q2 = QNetwork(feature_dim, hidden_dim, dropout_p).to(self.device)
-        self.target_q1 = QNetwork(feature_dim, hidden_dim).to(self.device)
-        self.target_q2 = QNetwork(feature_dim, hidden_dim).to(self.device)
+        self.q1 = QNetwork(feature_dim, hidden_dim, dropout_p, layernorm).to(self.device)
+        self.q2 = QNetwork(feature_dim, hidden_dim, dropout_p, layernorm).to(self.device)
+        self.target_q1 = QNetwork(feature_dim, hidden_dim, dropout_p, layernorm).to(self.device)
+        self.target_q2 = QNetwork(feature_dim, hidden_dim, dropout_p, layernorm).to(self.device)
 
         self.target_q1.load_state_dict(self.q1.state_dict())
         self.target_q2.load_state_dict(self.q2.state_dict())

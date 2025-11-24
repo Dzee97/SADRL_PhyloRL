@@ -9,7 +9,7 @@ from agents import DQNAgent, SoftQAgent
 
 
 def train_dqn_agent_process(agent_id, samples_dir, raxmlng_path, episodes, horizon, checkpoint_dir, checkpoint_freq,
-                            update_freq, hidden_dim, dropout_p, replay_size, replay_alpha, min_replay_start,
+                            update_freq, hidden_dim, dropout_p, layernorm, replay_size, replay_alpha, min_replay_start,
                             learning_rate, weight_decay, gamma, temp, replay_beta_start, replay_beta_frames, tau,
                             batch_size, double_q):
     torch.set_num_threads(1)
@@ -23,6 +23,7 @@ def train_dqn_agent_process(agent_id, samples_dir, raxmlng_path, episodes, horiz
     agent = DQNAgent(feature_dim=feature_dim,
                      hidden_dim=hidden_dim,
                      dropout_p=dropout_p,
+                     layernorm=layernorm,
                      learning_rate=learning_rate,
                      weight_decay=weight_decay,
                      gamma=gamma,
@@ -87,9 +88,9 @@ def train_dqn_agent_process(agent_id, samples_dir, raxmlng_path, episodes, horiz
 
 
 def train_softq_agent_process(agent_id, samples_dir, raxmlng_path, episodes, horizon, checkpoint_dir, checkpoint_freq,
-                              update_freq, hidden_dim, dropout_p, replay_size, replay_alpha, min_replay_start,
-                              learning_rate, weight_decay, gamma, temp_alpha_init, entropy_frames, entropy_start,
-                              entropy_end, replay_beta_start, replay_beta_frames, tau, batch_size):
+                              update_freq, hidden_dim, dropout_p, layernorm, replay_size, replay_alpha,
+                              min_replay_start, learning_rate, weight_decay, gamma, temp_alpha_init, entropy_frames,
+                              entropy_start, entropy_end, replay_beta_start, replay_beta_frames, tau, batch_size):
     torch.set_num_threads(1)
 
     # Create environment for this process
@@ -102,6 +103,7 @@ def train_softq_agent_process(agent_id, samples_dir, raxmlng_path, episodes, hor
     agent = SoftQAgent(feature_dim=feature_dim,
                        hidden_dim=hidden_dim,
                        dropout_p=dropout_p,
+                       layernorm=layernorm,
                        learning_rate=learning_rate,
                        weight_decay=weight_decay,
                        gamma=gamma,
