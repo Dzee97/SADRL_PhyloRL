@@ -93,6 +93,7 @@ full_soft_cfg = train_common | soft_cfg
 # Evaluation config
 evaluate_cfg = dict(
     hidden_dim=train_common["hidden_dim"],
+    layernorm=train_common["layernorm"],
     raxmlng_path=raxmlng_path,
     horizon=train_common["horizon"],
     top_k_reward=1,

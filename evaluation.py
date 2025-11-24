@@ -12,9 +12,9 @@ from agents import QNetwork
 
 
 class EvalAgent:
-    def __init__(self, feature_dim, hidden_dim, state_dict, device=None):
+    def __init__(self, feature_dim, hidden_dim, layernorm, state_dict, device=None):
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
-        self.q_net = QNetwork(feature_dim, hidden_dim).to(self.device)
+        self.q_net = QNetwork(feature_dim, hidden_dim, layernorm=layernorm).to(self.device)
         self.q_net.load_state_dict(state_dict)
         self.q_net.eval()
 
