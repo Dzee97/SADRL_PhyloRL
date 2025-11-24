@@ -316,7 +316,8 @@ def plot_final_checkpoint_tables(evaluate_dir: Path, dataset_name: str, algorith
 
 
 def evaluate_checkpoints(samples_dir: Path, start_tree_set: str, checkpoints_dir: Path, hidden_dim: int,
-                         evaluate_dir: Path, raxmlng_path: Path, horizon: int, top_k_reward: int, n_jobs: int):
+                         layernorm: bool, evaluate_dir: Path, raxmlng_path: Path, horizon: int, top_k_reward: int,
+                         n_jobs: int):
     """
     Evaluate all agents across their checkpoints in parallel (one process per agent).
     Each agent process uses a single PhyloEnv instance to reuse cached data.
@@ -381,7 +382,7 @@ def evaluate_checkpoints(samples_dir: Path, start_tree_set: str, checkpoints_dir
             print(f"[Agent {agent_num}] → Checkpoint {checkpoint_idx+1}/{n_checkpoints} (episode {episode_num})")
 
             state_dict = torch.load(checkpoint_file, map_location="cpu")
-            agent = EvalAgent(feature_dim, hidden_dim, state_dict)
+            agent = EvalAgent(feature_dim, hidden_dim, layernorm, state_dict)
 
             for sample_idx in range(num_samples):
                 for start_tree_idx in range(num_start_trees[sample_idx]):
