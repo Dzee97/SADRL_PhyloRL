@@ -58,7 +58,6 @@ train_common = dict(
     batch_size=128,
     hidden_dim=256,
     dropout_p=0.2,
-    layernorm=True,
     replay_size=10_000,
     min_replay_start=1000,
     learning_rate=1e-5,
@@ -94,7 +93,6 @@ full_soft_cfg = train_common | soft_cfg
 # Evaluation config
 evaluate_cfg = dict(
     hidden_dim=train_common["hidden_dim"],
-    layernorm=train_common["layernorm"],
     raxmlng_path=raxmlng_path,
     horizon=train_common["horizon"],
     add_new_features=train_common["add_new_features"],

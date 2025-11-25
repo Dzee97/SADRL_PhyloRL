@@ -12,9 +12,9 @@ from agents import QNetwork
 
 
 class EvalAgent:
-    def __init__(self, feature_dim, hidden_dim, layernorm, state_dict, device=None):
+    def __init__(self, feature_dim, hidden_dim, state_dict, device=None):
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
-        self.q_net = QNetwork(feature_dim, hidden_dim, layernorm=layernorm).to(self.device)
+        self.q_net = QNetwork(feature_dim, hidden_dim).to(self.device)
         self.q_net.load_state_dict(state_dict)
         self.q_net.eval()
 
@@ -316,7 +316,7 @@ def plot_final_checkpoint_tables(evaluate_dir: Path, dataset_name: str, algorith
 
 
 def evaluate_checkpoints(samples_dir: Path, start_tree_set: str, checkpoints_dir: Path, hidden_dim: int,
-                         layernorm: bool, evaluate_dir: Path, raxmlng_path: Path, horizon: int, add_new_features: bool,
+                         evaluate_dir: Path, raxmlng_path: Path, horizon: int, add_new_features: bool,
                          top_k_reward: int, n_jobs: int):
     """
     Evaluate all agents across their checkpoints in parallel (one process per agent).
@@ -382,7 +382,7 @@ def evaluate_checkpoints(samples_dir: Path, start_tree_set: str, checkpoints_dir
             print(f"[Agent {agent_num}] → Checkpoint {checkpoint_idx+1}/{n_checkpoints} (episode {episode_num})")
 
             state_dict = torch.load(checkpoint_file, map_location="cpu")
-            agent = EvalAgent(feature_dim, hidden_dim, layernorm, state_dict)
+            agent = EvalAgent(feature_dim, hidden_dim, state_dict)
 
             for sample_idx in range(num_samples):
                 for start_tree_idx in range(num_start_trees[sample_idx]):
