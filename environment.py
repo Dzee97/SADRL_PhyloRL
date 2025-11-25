@@ -14,10 +14,11 @@ class PhyloEnv:
     Gym-like environment for reinforcement learning in phylogenetic tree search.
     """
 
-    def __init__(self, samples_parent_dir: Path, raxmlng_path: Path, horizon: int):
+    def __init__(self, samples_parent_dir: Path, raxmlng_path: Path, horizon: int, add_new_features: bool):
         self.samples_parent_dir = Path(samples_parent_dir)
         self.raxmlng_path = Path(raxmlng_path)
         self.horizon = horizon
+        self.add_new_features = add_new_features
 
         self.samples = []
         self.num_train_start_trees = []
@@ -154,7 +155,8 @@ class PhyloEnv:
         feats = preproc.extract_all_spr_features(
             possible_moves,
             split_support_upgma=self.current_sample["split_support_upgma_counter"],
-            split_support_nj=self.current_sample["split_support_nj_counter"])
+            split_support_nj=self.current_sample["split_support_nj_counter"],
+            add_new_features=self.add_new_features)
         return annotated_tree, possible_moves, feats
 
     def _evaluate_likelihood(self, tree: Tree):

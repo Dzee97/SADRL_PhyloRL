@@ -34,12 +34,20 @@ class TreePreprocessor:
         self.subtree_max_edge = {}
         self.subtree_split = {}
 
+        self.max_leaf_depth_length = -1
+        self.max_leaf_depth_length_node = None
+
+        self.max_leaf_depth_count = -1
+        self.max_leaf_depth_count_node = None
+
         # Edge set
         self.edges = []
 
         # Run preprocessing
         self._dfs(self.tree, None, 0, 0.0, 0)
         self._build_sparse_table()
+        self._compute_branch_length_diameter()
+        self._compute_topology_diameter()
 
     def _dfs(self, node, parent, d, dist, name_counter):
         """DFS that fills all metadata + Euler tour arrays"""
@@ -58,6 +66,14 @@ class TreePreprocessor:
         # depth info
         self.depth_length[node] = dist
         self.depth_count[node] = d
+
+        if node.is_leaf():
+            if dist > self.max_leaf_depth_length:
+                self.max_leaf_depth_length = dist
+                self.max_leaf_depth_length_node = node
+            if d > self.max_leaf_depth_count:
+                self.max_leaf_depth_count = d
+                self.max_leaf_depth_count_node = node
 
         if node not in self.first_occurrence:
             self.first_occurrence[node] = len(self.euler)
@@ -90,6 +106,34 @@ class TreePreprocessor:
         self.time += 1
 
         return name_counter
+
+    def _compute_branch_length_diameter(self):
+        self.branch_length_diameter = -1
+
+        def dfs_from(node, parent, dist):
+            if dist > self.branch_length_diameter:
+                self.branch_length_diameter = dist
+            for child in node.children:
+                if child is not parent:
+                    dfs_from(child, node, dist + child.dist)
+            if node.up is not None and node.up is not parent:
+                dfs_from(node.up, node, dist + node.dist)
+
+        dfs_from(self.max_leaf_depth_length_node, None, 0.0)
+
+    def _compute_topology_diameter(self):
+        self.topology_diameter = -1
+
+        def dfs_from(node, parent, d):
+            if d > self.topology_diameter:
+                self.topology_diameter = d
+            for child in node.children:
+                if child is not parent:
+                    dfs_from(child, node, d + 1)
+            if node.up is not None and node.up is not parent:
+                dfs_from(node.up, node, d + 1)
+
+        dfs_from(self.max_leaf_depth_count_node, None, 0)
 
     def _min_tree_split(self, split_set):
         all_set = self.subtree_split[self.tree]
@@ -198,7 +242,8 @@ class TreePreprocessor:
 
         return self.tree, possible_moves
 
-    def extract_all_spr_features(self, possible_moves, split_support_nj, split_support_upgma):
+    def extract_all_spr_features(self, possible_moves, split_support_nj, split_support_upgma,
+                                 add_new_features=False):
         """
         1: Total branch length
         2: Longest branch
@@ -214,6 +259,18 @@ class TreePreprocessor:
 
         f1 = self.subtree_length[self.tree]
         f2 = self.subtree_max_edge[self.tree]
+
+        if add_new_features:
+            # Mean branch length
+            f101 = f1 / (self.subtree_leaves[self.tree] * 2 - 2)
+            # Normalize longest branch by mean branch length
+            f102 = f2 / f101
+            # Branch length diameter
+            f103 = self.branch_length_diameter
+            # Topology diameter
+            f104 = self.topology_diameter
+            # Topology diameter normalized by max diameter (shape descriptor)
+            f105 = f104 / (self.subtree_leaves[self.tree] - 1)
 
         def compute_move_specific_features(move):
             prune_edge, regraft_edge, lca = move
@@ -309,8 +366,45 @@ class TreePreprocessor:
             f23 = split_support_upgma[min_new_regraft_split]
             f27 = split_support_nj[min_new_regraft_split]
 
-            return np.array([f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19,
-                             f20, f21, f22, f23, f24, f25, f26, f27])
+            if add_new_features:
+                # prune branch length / mean branch length
+                f3_norm_f101 = f3 / f101
+                # regraft branch length / mean branch length
+                f4_norm_f101 = f4 / f101
+                # topology distance / topology diameter
+                f5_norm_f103 = f5 / f104
+                # branch length distance / branch length diameter
+                f6_norm_f102 = f6 / f103
+                # new branch length / mean branch length
+                f7_norm_f101 = f7 / f101
+                # number of leaves in subtrees / total number of leaves
+                f8_norm_n = f8 / self.subtree_leaves[self.tree]
+                f9_norm_n = f9 / self.subtree_leaves[self.tree]
+                f10_norm_n = f10 / self.subtree_leaves[self.tree]
+                f11_norm_n = f11 / self.subtree_leaves[self.tree]
+                # sum of branch lengths in subtrees / total branch lengths
+                f12_norm_f1 = f12 / f1
+                f13_norm_f1 = f13 / f1
+                f14_norm_f1 = f14 / f1
+                f15_norm_f1 = f15 / f1
+                # longest branch in subtrees / mean branch length
+                f16_norm_f101 = f16 / f101
+                f17_norm_f101 = f17 / f101
+                f18_norm_f101 = f18 / f101
+                f19_norm_f101 = f19 / f101
+
+                return np.array([f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19,
+                                 f20, f21, f22, f23, f24, f25, f26, f27,
+                                 # new global features
+                                 f101, f102, f103, f104, f105,
+                                 # new move specific features
+                                 f3_norm_f101, f4_norm_f101, f5_norm_f103, f6_norm_f102, f7_norm_f101,
+                                 f8_norm_n, f9_norm_n, f10_norm_n, f11_norm_n,
+                                 f12_norm_f1, f13_norm_f1, f14_norm_f1, f15_norm_f1,
+                                 f16_norm_f101, f17_norm_f101, f18_norm_f101, f19_norm_f101])
+            else:
+                return np.array([f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19,
+                                 f20, f21, f22, f23, f24, f25, f26, f27])
 
         results = np.array([compute_move_specific_features(move) for move in possible_moves])
 

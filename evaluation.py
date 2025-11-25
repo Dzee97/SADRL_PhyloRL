@@ -316,8 +316,8 @@ def plot_final_checkpoint_tables(evaluate_dir: Path, dataset_name: str, algorith
 
 
 def evaluate_checkpoints(samples_dir: Path, start_tree_set: str, checkpoints_dir: Path, hidden_dim: int,
-                         layernorm: bool, evaluate_dir: Path, raxmlng_path: Path, horizon: int, top_k_reward: int,
-                         n_jobs: int):
+                         layernorm: bool, evaluate_dir: Path, raxmlng_path: Path, horizon: int, add_new_features: bool,
+                         top_k_reward: int, n_jobs: int):
     """
     Evaluate all agents across their checkpoints in parallel (one process per agent).
     Each agent process uses a single PhyloEnv instance to reuse cached data.
@@ -334,7 +334,7 @@ def evaluate_checkpoints(samples_dir: Path, start_tree_set: str, checkpoints_dir
     os.makedirs(evaluate_dir, exist_ok=True)
 
     # ---- Base environment (just for metadata) ----
-    base_env = PhyloEnv(samples_dir, raxmlng_path, horizon=horizon)
+    base_env = PhyloEnv(samples_dir, raxmlng_path, horizon, add_new_features)
     tree_hash, feats = base_env.reset(start_tree_set="test")
     feature_dim = feats.shape[1]
     num_samples = len(base_env.samples)
@@ -369,7 +369,7 @@ def evaluate_checkpoints(samples_dir: Path, start_tree_set: str, checkpoints_dir
     # ---- Worker function (evaluates one agent across all checkpoints) ----
     def eval_single_agent(agent_idx, agent_num):
         torch.set_num_threads(1)  # prevent oversubscription
-        env = PhyloEnv(samples_dir, raxmlng_path, horizon=horizon)  # reuse within agent
+        env = PhyloEnv(samples_dir, raxmlng_path, horizon, add_new_features)  # reuse within agent
         agent_results = np.full((num_samples, n_checkpoints, max_num_start_trees, horizon + 1), np.nan)
 
         print(f"[Agent {agent_num}] Starting evaluation with {n_checkpoints} checkpoints")

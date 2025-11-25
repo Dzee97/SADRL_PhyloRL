@@ -11,11 +11,11 @@ from agents import DQNAgent, SoftQAgent
 def train_dqn_agent_process(agent_id, samples_dir, raxmlng_path, episodes, horizon, checkpoint_dir, checkpoint_freq,
                             update_freq, hidden_dim, dropout_p, layernorm, replay_size, replay_alpha, min_replay_start,
                             learning_rate, weight_decay, gamma, temp, replay_beta_start, replay_beta_frames, tau,
-                            batch_size, double_q):
+                            batch_size, double_q, add_new_features):
     torch.set_num_threads(1)
 
     # Create environment for this process
-    env = PhyloEnv(samples_dir, raxmlng_path, horizon=horizon)
+    env = PhyloEnv(samples_dir, raxmlng_path, horizon, add_new_features)
     tree_hash, feats = env.reset()
     feature_dim = feats.shape[1]
 
@@ -90,11 +90,12 @@ def train_dqn_agent_process(agent_id, samples_dir, raxmlng_path, episodes, horiz
 def train_softq_agent_process(agent_id, samples_dir, raxmlng_path, episodes, horizon, checkpoint_dir, checkpoint_freq,
                               update_freq, hidden_dim, dropout_p, layernorm, replay_size, replay_alpha,
                               min_replay_start, learning_rate, weight_decay, gamma, temp_alpha_init, entropy_frames,
-                              entropy_start, entropy_end, replay_beta_start, replay_beta_frames, tau, batch_size):
+                              entropy_start, entropy_end, replay_beta_start, replay_beta_frames, tau, batch_size,
+                              add_new_features):
     torch.set_num_threads(1)
 
     # Create environment for this process
-    env = PhyloEnv(samples_dir, raxmlng_path, horizon=horizon)
+    env = PhyloEnv(samples_dir, raxmlng_path, horizon, add_new_features)
     tree_hash, feats = env.reset()
     feature_dim = feats.shape[1]
     num_actions = feats.shape[0]

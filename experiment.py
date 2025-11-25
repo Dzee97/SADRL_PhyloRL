@@ -52,6 +52,7 @@ n_agents = 5
 train_common = dict(
     episodes=20_000,
     horizon=20,
+    add_new_features=True,
     checkpoint_freq=1000,
     update_freq=1,
     batch_size=128,
@@ -96,6 +97,7 @@ evaluate_cfg = dict(
     layernorm=train_common["layernorm"],
     raxmlng_path=raxmlng_path,
     horizon=train_common["horizon"],
+    add_new_features=train_common["add_new_features"],
     top_k_reward=1,
     n_jobs=n_cores,
 )
