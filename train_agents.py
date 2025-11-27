@@ -202,7 +202,7 @@ def train_gnn_agent_process(agent_id, samples_dir, raxmlng_path, episodes, horiz
     
     print(f"[GNN Agent {agent_id}] Initialized environment (took {time.time() - t0:.2f}s)")
     
-    # GNN uses atomic features: node_feat_dim=1, edge_feat_dim=1, action_dim=7
+        # GNN uses atomic features: node_feat_dim=1, edge_feat_dim=1, action_dim=7
     t0 = time.time()
     agent = GNNSoftQAgent(
         node_feat_dim=1,  # [is_leaf]

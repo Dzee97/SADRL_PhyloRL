@@ -426,7 +426,7 @@ class GNNQNetwork(nn.Module):
     
     Architecture:
     1. Encode tree structure with GATv2 layers
-    2. Encode action embedding with MLP
+    2. Encode action embedding with MLP (using NODE EMBEDDINGS + metadata)
     3. Combine tree + action representations
     4. Output Q-value
     
@@ -437,7 +437,7 @@ class GNNQNetwork(nn.Module):
     """
     
     def __init__(self, node_feat_dim, edge_feat_dim, action_dim, hidden_dim, 
-                 num_gat_layers=3, num_attention_heads=4, dropout_p=0.0):
+                 num_gat_layers=3, num_attention_heads=4, dropout_p=0.0, num_action_node_indices=4):
         super().__init__()
         
         if not TORCH_GEOMETRIC_AVAILABLE:
@@ -447,6 +447,7 @@ class GNNQNetwork(nn.Module):
         self.edge_feat_dim = edge_feat_dim
         self.action_dim = action_dim
         self.hidden_dim = hidden_dim
+        self.num_action_node_indices = num_action_node_indices
         
         # Node feature projection
         self.node_encoder = nn.Linear(node_feat_dim, hidden_dim)
@@ -466,8 +467,11 @@ class GNNQNetwork(nn.Module):
             )
         
         # Action encoder (processes action embedding)
+        # Input: (4 * hidden_dim for node embeddings) + (action_dim - 4 for metadata)
+        mlp_input_dim = (num_action_node_indices * hidden_dim) + (action_dim - num_action_node_indices)
+        
         self.action_encoder = nn.Sequential(
-            nn.Linear(action_dim, hidden_dim),
+            nn.Linear(mlp_input_dim, hidden_dim),
             nn.ReLU(),
             nn.Dropout(dropout_p),
             nn.Linear(hidden_dim, hidden_dim),
@@ -521,7 +525,8 @@ class GNNQNetwork(nn.Module):
         
         Returns:
             tree_embedding: [3*hidden_dim] or [batch_size, 3*hidden_dim]
-                           Concatenation of sum, mean, and max pooling to preserve maximum information
+                           Concatenation of sum, mean, and max pooling
+            node_embeddings: [num_nodes, hidden_dim] - Learned embeddings for each node
         """
         x = graph_data.x
         edge_index = graph_data.edge_index
@@ -540,6 +545,8 @@ class GNNQNetwork(nn.Module):
         for gat_layer in self.gat_layers:
             x_new = gat_layer(x, edge_index, edge_attr=edge_attr)
             x = torch.relu(x_new) + x  # Residual connection
+        
+        node_embeddings = x  # Keep node embeddings for action encoding
         
         # Global tree representation using multiple aggregations to preserve information
         # Concatenate sum, mean, and max to capture:
@@ -562,42 +569,98 @@ class GNNQNetwork(nn.Module):
             max_pool = x.max(dim=0)[0]  # [hidden_dim]
             tree_emb = torch.cat([sum_pool, mean_pool, max_pool], dim=-1)  # [hidden_dim * 3]
         
-        return tree_emb
+        return tree_emb, node_embeddings
     
-    def forward(self, graph_data: Data, action_tensor: torch.Tensor, batch_idx: Optional[torch.Tensor] = None, tree_embedding: Optional[torch.Tensor] = None):
+    def forward(self, graph_data: Data, action_tensor: torch.Tensor, batch_idx: Optional[torch.Tensor] = None, 
+                tree_embedding: Optional[torch.Tensor] = None, node_embeddings: Optional[torch.Tensor] = None,
+                batch_ptr: Optional[torch.Tensor] = None):
         """Compute Q-value for (graph, action) pair.
         
         Args:
             graph_data: PyG Data object (ignored if tree_embedding provided)
-            action_tensor: [action_dim] or [num_actions, action_dim]
+            action_tensor: [..., action_dim] - Contains node indices + metadata
             batch_idx: [num_nodes] batch assignment (ignored if tree_embedding provided)
-            tree_embedding: Pre-computed tree encoding [3*hidden_dim] from encode_tree() (EFFICIENCY!)
+            tree_embedding: Pre-computed tree encoding [3*hidden_dim]
+            node_embeddings: Pre-computed node embeddings [num_nodes, hidden_dim]
+            batch_ptr: [batch_size + 1] - Start indices for each graph in batch (needed for batched actions)
         
         Returns:
             Q-value: scalar or [num_actions]
         """
         # Use pre-computed tree embedding if provided (EFFICIENCY!)
-        if tree_embedding is None:
-            tree_emb = self.encode_tree(graph_data, batch_idx)
+        if tree_embedding is None or node_embeddings is None:
+            tree_emb, node_embs = self.encode_tree(graph_data, batch_idx)
         else:
             tree_emb = tree_embedding
+            node_embs = node_embeddings
         
-        # Encode action(s)
-        action_emb = self.action_encoder(action_tensor)  # [hidden_dim] or [num_actions, hidden_dim]
+        # --- ENCODE ACTION USING NODE EMBEDDINGS ---
+        
+        # 1. Extract indices and metadata
+        # action_tensor: [..., action_dim]
+        node_indices = action_tensor[..., :self.num_action_node_indices].long() # [..., 4]
+        metadata = action_tensor[..., self.num_action_node_indices:]            # [..., 3]
+        
+        # 2. Handle batch shifting if needed
+        if batch_ptr is not None:
+            # batch_ptr: [batch_size + 1]
+            # We need shifts for each item in the batch.
+            # Assuming action_tensor dim 0 is batch dimension.
+            shifts = batch_ptr[:-1].to(node_indices.device)
+            
+            # Broadcast shifts to match node_indices shape
+            # node_indices: [batch_size, ..., 4]
+            # shifts: [batch_size] -> [batch_size, 1, ..., 1]
+            # We need to append 1s for all dimensions after the batch dimension
+            view_shape = [-1] + [1] * (node_indices.dim() - 1)
+            shifts = shifts.view(view_shape)
+            
+            node_indices = node_indices + shifts
+            
+        # 3. Gather node embeddings
+        # node_embs: [total_nodes, hidden_dim]
+        # node_indices: [..., 4]
+        
+        # Flatten indices to gather
+        flat_indices = node_indices.view(-1)
+        gathered_embs = node_embs[flat_indices] # [total_indices, hidden_dim]
+        
+        # Reshape back: [..., 4, hidden_dim]
+        gathered_embs = gathered_embs.view(*node_indices.shape, -1)
+        
+        # Flatten the 4 embeddings: [..., 4 * hidden_dim]
+        gathered_embs_flat = gathered_embs.view(*node_indices.shape[:-1], -1)
+        
+        # 4. Concatenate with metadata
+        action_input = torch.cat([gathered_embs_flat, metadata], dim=-1)
+        
+        # Encode action
+        action_emb = self.action_encoder(action_input)  # [..., hidden_dim]
         
         # Combine tree and action representations
-        # tree_emb is [3*hidden_dim] (sum+mean+max) or [batch_size, 3*hidden_dim]
-        # action_emb is [hidden_dim] or [num_actions, hidden_dim]
+        # tree_emb is [3*hidden_dim] or [batch_size, 3*hidden_dim]
+        # action_emb is [hidden_dim] or [batch_size, num_actions, hidden_dim]
+        
         if action_emb.dim() == 1:
-            # Single action
-            combined = torch.cat([tree_emb, action_emb], dim=0)  # [4*hidden_dim]
+            # Single action, single tree
+            combined = torch.cat([tree_emb, action_emb], dim=0)
+        elif action_emb.dim() == 2 and tree_emb.dim() == 1:
+             # Multiple actions, single tree
+            tree_emb_expanded = tree_emb.unsqueeze(0).expand(action_emb.shape[0], -1)
+            combined = torch.cat([tree_emb_expanded, action_emb], dim=1)
+        elif action_emb.dim() == 2 and tree_emb.dim() == 2:
+            # Batched trees, one action per tree (e.g. Q-value of chosen action)
+            combined = torch.cat([tree_emb, action_emb], dim=1)
+        elif action_emb.dim() == 3 and tree_emb.dim() == 2:
+            # Batched trees, multiple actions per tree (e.g. target Q-values)
+            # tree_emb: [batch_size, 3*hidden_dim] -> [batch_size, 1, 3*hidden_dim]
+            tree_emb_expanded = tree_emb.unsqueeze(1).expand(-1, action_emb.shape[1], -1)
+            combined = torch.cat([tree_emb_expanded, action_emb], dim=2)
         else:
-            # Multiple actions - broadcast tree embedding
-            tree_emb_expanded = tree_emb.unsqueeze(0).expand(action_emb.shape[0], -1)  # [num_actions, 3*hidden_dim]
-            combined = torch.cat([tree_emb_expanded, action_emb], dim=1)  # [num_actions, 4*hidden_dim]
+             raise ValueError(f"Unexpected shapes: tree {tree_emb.shape}, action {action_emb.shape}")
         
         # Compute Q-value
-        q_value = self.q_head(combined)  # [1] or [num_actions, 1]
+        q_value = self.q_head(combined)  # [..., 1]
         
         return q_value.squeeze(-1)
 
@@ -650,19 +713,21 @@ class GNNPrioritizedReplayBuffer:
         
         # OPTIMIZATION: Store PyG Data objects directly to avoid recreation in update loop
         # We attach node_name_to_idx to the Data object so we can use it later if needed
+        # CRITICAL FIX: Do NOT attach dictionary to Data object directly as it breaks PyG collation
+        # PyG tries to collate all attributes, and it doesn't know how to collate dictionaries
         tree_data = Data(
             x=tree_graph.node_features,
             edge_index=tree_graph.edge_index,
             edge_attr=tree_graph.edge_features
         )
-        tree_data.node_name_to_idx = tree_graph.node_name_to_idx
+        # tree_data.node_name_to_idx = tree_graph.node_name_to_idx  <-- REMOVED
         
         next_tree_data = Data(
             x=next_tree_graph.node_features,
             edge_index=next_tree_graph.edge_index,
             edge_attr=next_tree_graph.edge_features
         )
-        next_tree_data.node_name_to_idx = next_tree_graph.node_name_to_idx
+        # next_tree_data.node_name_to_idx = next_tree_graph.node_name_to_idx <-- REMOVED
 
         # Store directly (already on GPU!)
         self.tree_graphs[self.pos] = tree_data
@@ -824,19 +889,19 @@ class GNNSoftQAgent:
             )
             
             if cache_key in self.tree_embedding_cache:
-                tree_embedding = self.tree_embedding_cache[cache_key]
+                tree_embedding, node_embeddings = self.tree_embedding_cache[cache_key]
             else:
                 # Encode tree through 4 GAT layers (expensive!)
-                tree_embedding = self.q1.encode_tree(graph_data)
+                tree_embedding, node_embeddings = self.q1.encode_tree(graph_data)
                 # Cache it for future use
-                self.tree_embedding_cache[cache_key] = tree_embedding
+                self.tree_embedding_cache[cache_key] = (tree_embedding, node_embeddings)
             
             # EFFICIENCY: Batch all action embeddings
             # action_embeddings is already a tensor [num_actions, action_dim]
             action_tensors = action_embeddings.to(self.device)
             
             # EFFICIENCY: Compute Q-values for all actions in ONE forward pass!
-            q_values = self.q1(graph_data, action_tensors, tree_embedding=tree_embedding)  # [num_possible_actions]
+            q_values = self.q1(graph_data, action_tensors, tree_embedding=tree_embedding, node_embeddings=node_embeddings)  # [num_possible_actions]
             
             # Boltzmann policy
             alpha = self.log_alpha.exp()
@@ -865,58 +930,33 @@ class GNNSoftQAgent:
         batched_actions = torch.stack(batch_action_tensors)  # [batch_size, action_dim]
         
         # Encode all trees at once with each network
-        tree_embeddings_q1 = self.q1.encode_tree(batched_graph, batched_graph.batch)  # [batch_size, 3*hidden_dim]
-        tree_embeddings_q2 = self.q2.encode_tree(batched_graph, batched_graph.batch)  # [batch_size, 3*hidden_dim]
+        tree_embeddings_q1, node_embeddings_q1 = self.q1.encode_tree(batched_graph, batched_graph.batch)  # [batch_size, 3*hidden_dim]
+        tree_embeddings_q2, node_embeddings_q2 = self.q2.encode_tree(batched_graph, batched_graph.batch)  # [batch_size, 3*hidden_dim]
         
-        # Batch compute Q-values: encode actions separately for each network to avoid shared computation graph
-        action_embeddings_q1 = self.q1.action_encoder(batched_actions)  # [batch_size, hidden_dim]
-        action_embeddings_q2 = self.q2.action_encoder(batched_actions)  # [batch_size, hidden_dim]
+        # Get batch pointers for index shifting
+        batch_ptr = batched_graph.ptr
         
-        # Combine tree embeddings with action embeddings
-        combined_q1 = torch.cat([tree_embeddings_q1, action_embeddings_q1], dim=1)  # [batch_size, 4*hidden_dim]
-        combined_q2 = torch.cat([tree_embeddings_q2, action_embeddings_q2], dim=1)  # [batch_size, 4*hidden_dim]
-        
-        # Compute Q-values in batch
-        q1_vals = self.q1.q_head(combined_q1).squeeze(-1)  # [batch_size]
-        q2_vals = self.q2.q_head(combined_q2).squeeze(-1)  # [batch_size]
+        # Batch compute Q-values
+        q1_vals = self.q1(None, batched_actions, tree_embedding=tree_embeddings_q1, node_embeddings=node_embeddings_q1, batch_ptr=batch_ptr)
+        q2_vals = self.q2(None, batched_actions, tree_embedding=tree_embeddings_q2, node_embeddings=node_embeddings_q2, batch_ptr=batch_ptr)
         
         # EFFICIENCY: Compute target Q-values with FULLY BATCHED operations
         with torch.no_grad():
             # Batch all next-state graphs (already Data objects)
             batched_next_graph = Batch.from_data_list(batch_next_tree_graphs)
+            next_batch_ptr = batched_next_graph.ptr
             
             # Stack all actions: [batch_size, num_actions, action_dim]
             # Note: This assumes num_actions is constant across batch. 
             # If not, we need to handle variable sizes, but for now assuming constant for speed.
             all_next_actions = torch.stack(batch_next_action_tensors)
-            num_actions_per_state = all_next_actions.shape[1]
             
             # Encode all next-state trees in parallel
-            next_tree_embeddings = self.target_q1.encode_tree(batched_next_graph, batched_next_graph.batch)  # [batch_size, 3*hidden_dim]
+            next_tree_embeddings, next_node_embeddings = self.target_q1.encode_tree(batched_next_graph, batched_next_graph.batch)
             
-            # Reshape for broadcasting: repeat each tree embedding for all its actions
-            # [batch_size, 3*hidden_dim] -> [batch_size, num_actions, 3*hidden_dim]
-            next_tree_embeddings_expanded = next_tree_embeddings.unsqueeze(1).expand(-1, num_actions_per_state, -1)
-            
-            # Flatten batch and actions dimensions for parallel processing
-            # [batch_size, num_actions, 3*hidden_dim] -> [batch_size*num_actions, 3*hidden_dim]
-            next_tree_flat = next_tree_embeddings_expanded.reshape(-1, next_tree_embeddings.shape[-1])
-            # [batch_size, num_actions, action_dim] -> [batch_size*num_actions, action_dim]
-            next_actions_flat = all_next_actions.reshape(-1, all_next_actions.shape[-1])
-            
-            # Encode all actions in parallel
-            next_action_embs_flat = self.target_q1.action_encoder(next_actions_flat)  # [batch_size*num_actions, hidden_dim]
-            
-            # Combine and compute Q-values
-            combined_q1_flat = torch.cat([next_tree_flat, next_action_embs_flat], dim=-1)  # [batch_size*num_actions, 4*hidden_dim]
-            combined_q2_flat = torch.cat([next_tree_flat, next_action_embs_flat], dim=-1)
-            
-            q1_next_flat = self.target_q1.q_head(combined_q1_flat).squeeze(-1)  # [batch_size*num_actions]
-            q2_next_flat = self.target_q2.q_head(combined_q2_flat).squeeze(-1)  # [batch_size*num_actions]
-            
-            # Reshape back to [batch_size, num_actions]
-            q1_next = q1_next_flat.reshape(batch_size, num_actions_per_state)
-            q2_next = q2_next_flat.reshape(batch_size, num_actions_per_state)
+            # Evaluate ALL moves with GNN (same for q1 and q2)
+            q1_next = self.target_q1(None, all_next_actions, tree_embedding=next_tree_embeddings, node_embeddings=next_node_embeddings, batch_ptr=next_batch_ptr)
+            q2_next = self.target_q2(None, all_next_actions, tree_embedding=next_tree_embeddings, node_embeddings=next_node_embeddings, batch_ptr=next_batch_ptr)
             
             # Min over both Q-networks
             q_min = torch.min(q1_next, q2_next)  # [batch_size, num_actions]
