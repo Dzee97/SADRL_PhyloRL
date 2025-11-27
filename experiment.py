@@ -32,15 +32,15 @@ sampling_cfg = dict(
 # Experiment sets
 EXPERIMENTS = {
     # Sample size 9
-    # "Size9Samples1Train100Test20": dict(sample_size=9, num_samples=1,
-    #                                    num_rand_train_trees=100, num_rand_test_trees=20),
+    "Size9Samples1Train100Test20": dict(sample_size=9, num_samples=1,
+                                        num_rand_train_trees=100, num_rand_test_trees=20),
     # "Size9Samples50Train100Test20": dict(sample_size=9, num_samples=50,
     #                                     num_rand_train_trees=100, num_rand_test_trees=20),
     # "Size9Samples100Train100Test20": dict(sample_size=9, num_samples=100,
     #                                      num_rand_train_trees=100, num_rand_test_trees=20),
-    "Size9Samples500Train100Test20": dict(sample_size=9, num_samples=500,
-                                          num_rand_train_trees=100, num_rand_test_trees=20),
-    "Size9ValidationSet50": dict(sample_size=9, num_samples=50, num_rand_train_trees=0, num_rand_test_trees=20),
+    # "Size9Samples500Train100Test20": dict(sample_size=9, num_samples=500,
+    #                                      num_rand_train_trees=100, num_rand_test_trees=20),
+    # "Size9ValidationSet50": dict(sample_size=9, num_samples=50, num_rand_train_trees=0, num_rand_test_trees=20),
 }
 
 # Set number of cores for parallel agent training and evaluation
@@ -52,16 +52,16 @@ n_agents = 5
 train_common = dict(
     episodes=20_000,
     horizon=20,
-    add_new_features=True,
+    add_new_features=False,
     checkpoint_freq=1000,
     update_freq=1,
     batch_size=128,
     hidden_dim=256,
-    dropout_p=0.2,
+    dropout_p=0.0,
     replay_size=10_000,
     min_replay_start=1000,
     learning_rate=1e-5,
-    weight_decay=1e-2,
+    weight_decay=0.0,
     gamma=0.9,
     tau=0.005
 )
