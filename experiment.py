@@ -4,7 +4,7 @@ from pathlib import Path
 from functools import partial
 from sample_datasets import sample_dataset
 from train_agents import run_parallel_training
-from evaluation import evaluate_checkpoints, plot_final_checkpoint_tables, accuracy_over_checkpoints
+from evaluation import evaluate_checkpoints, evaluate_gnn_checkpoints, plot_final_checkpoint_tables, accuracy_over_checkpoints
 
 
 # === CONFIGURATION ===
@@ -36,7 +36,7 @@ EXPERIMENTS = {
     #                                    num_rand_train_trees=100, num_rand_test_trees=20),
     "Size9Samples100Train100Test20": dict(sample_size=9, num_samples=100,
                                           num_rand_train_trees=100, num_rand_test_trees=20),
-    "Size9ValidationSet50": dict(sample_size=9, num_samples=20, num_rand_train_trees=0, num_rand_test_trees=50),
+    "Size9ValidationSet50": dict(sample_size=9, num_samples=50, num_rand_train_trees=0, num_rand_test_trees=20),
 }
 
 # Set number of cores for parallel agent training and evaluation
@@ -46,14 +46,14 @@ n_agents = 5
 
 # Training parameters (shared)
 train_common = dict(
-    episodes=20_000,
+    episodes=30_000,
     horizon=20,
     checkpoint_freq=1000,
     update_freq=1,
-    batch_size=128,
+    batch_size=256,
     hidden_dim=256,
     dropout_p=0.2,
-    replay_size=10_000,
+    replay_size=50_000,
     min_replay_start=1000,
     learning_rate=1e-5,
     weight_decay=1e-2,
@@ -81,9 +81,23 @@ soft_cfg = dict(
     entropy_end=0.5
 )
 
+# GNN agent parameters (based on Soft DQN)
+gnn_cfg = dict(
+    replay_alpha=0.0,
+    replay_beta_start=0.4,
+    replay_beta_frames=400_000,
+    temp_alpha_init=4.0,
+    entropy_frames=400_000,
+    entropy_start=0.5,
+    entropy_end=0.5,
+    num_gat_layers=4,        # GNN-specific
+    num_attention_heads=4    # GNN-specific
+)
+
 # Hash full parameters for file names
 full_dqn_cfg = train_common | dqn_cfg
 full_soft_cfg = train_common | soft_cfg
+full_gnn_cfg = train_common | gnn_cfg
 
 # Evaluation config
 evaluate_cfg = dict(
@@ -92,6 +106,12 @@ evaluate_cfg = dict(
     horizon=train_common["horizon"],
     top_k_reward=1,
     n_jobs=n_cores,
+)
+
+# GNN evaluation config (includes GNN-specific params)
+gnn_evaluate_cfg = evaluate_cfg | dict(
+    num_gat_layers=gnn_cfg["num_gat_layers"],
+    num_attention_heads=gnn_cfg["num_attention_heads"]
 )
 
 
@@ -119,8 +139,10 @@ def run_training(algorithm):
         training_hps = full_dqn_cfg
     elif algorithm == "SQL":
         training_hps = full_soft_cfg
+    elif algorithm == "GNN":
+        training_hps = full_gnn_cfg
     else:
-        raise ValueError("Invalid alogirhtm name")
+        raise ValueError(f"Invalid algorithm name: {algorithm}")
 
     hps_hash = stable_hash(training_hps)
 
@@ -146,14 +168,17 @@ def run_evaluation(algorithm, set_type="test"):
 
     if algorithm == "DQN":
         training_hps = full_dqn_cfg
+        evaluate_fn = partial(evaluate_checkpoints, **evaluate_cfg)
     elif algorithm == "SQL":
         training_hps = full_soft_cfg
+        evaluate_fn = partial(evaluate_checkpoints, **evaluate_cfg)
+    elif algorithm == "GNN":
+        training_hps = full_gnn_cfg
+        evaluate_fn = partial(evaluate_gnn_checkpoints, **gnn_evaluate_cfg)
     else:
-        raise ValueError("Invalid alogirhtm name")
+        raise ValueError(f"Invalid algorithm name: {algorithm}")
 
     hps_hash = stable_hash(training_hps)
-
-    evaluate_fn = partial(evaluate_checkpoints, **evaluate_cfg)
 
     for name, cfg in EXPERIMENTS.items():
         # Datsets without training trees have no checkpoints to evaluate
@@ -186,12 +211,12 @@ def run_evaluation(algorithm, set_type="test"):
 # === MAIN EXECUTION ===
 if __name__ == "__main__":
     # toggle these flags to control which parts run
-    RUN_SAMPLING = True
+    RUN_SAMPLING = False
     RUN_TRAINING = True
     RUN_EVALUATION = True
 
-    # set this flag to control which algorithm to run (DQN, SQL)
-    ALGORITHM = "SQL"
+    # set this flag to control which algorithm to run (DQN, SQL, GNN)
+    ALGORITHM = "GNN"
 
     if RUN_SAMPLING:
         run_sampling()
