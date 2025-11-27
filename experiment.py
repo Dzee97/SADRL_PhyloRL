@@ -197,7 +197,7 @@ if __name__ == "__main__":
     RUN_EVALUATION = True
 
     # set this flag to control which algorithm to run (DQN, SQL)
-    ALGORITHM = "SQL"
+    ALGORITHM = "DQN"
 
     if RUN_SAMPLING:
         run_sampling()
