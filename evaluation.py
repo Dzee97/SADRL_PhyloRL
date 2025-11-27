@@ -71,7 +71,7 @@ def accuracy_over_checkpoints(evaluate_dir: Path, train_dataset: str, eval_datas
                  label="_agent_trace" if a > 0 else "Agents")
 
     ax1.plot(episode_nums, res_match_raxml_count_agent_mean_sample_mean, color=color, linewidth=2.0,
-             label="Agents mean")
+             label="Mean")
     # ax1.fill_between(episode_nums,
     #                 res_match_raxml_count_agent_mean_sample_mean - res_match_raxml_count_agent_mean_sample_ci95,
     #                 res_match_raxml_count_agent_mean_sample_mean + res_match_raxml_count_agent_mean_sample_ci95,
@@ -89,7 +89,7 @@ def accuracy_over_checkpoints(evaluate_dir: Path, train_dataset: str, eval_datas
                  label="_agent_trace" if a > 0 else "Agents")
 
     ax2.plot(episode_nums, res_diff_raxml_start_mean_agent_mean_sample_mean, color=color, linewidth=2.0,
-             label="Agents mean")
+             label="Mean")
     # ax2.fill_between(episode_nums,
     #                 res_diff_raxml_start_mean_agent_mean_sample_mean - res_diff_raxml_start_mean_agent_mean_sample_ci95,
     #                 res_diff_raxml_start_mean_agent_mean_sample_mean + res_diff_raxml_start_mean_agent_mean_sample_ci95,
