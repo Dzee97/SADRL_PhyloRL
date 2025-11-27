@@ -48,18 +48,18 @@ def accuracy_over_checkpoints(evaluate_dir: Path, train_dataset: str, eval_datas
     res_match_raxml_count_sample_mean = np.mean(res_match_raxml_count, axis=1)
     res_match_raxml_count_agent_mean = np.mean(res_match_raxml_count, axis=0)
     res_match_raxml_count_agent_mean_sample_mean = np.mean(res_match_raxml_count_agent_mean, axis=0)
-    res_match_raxml_count_agent_mean_sample_std = np.std(res_match_raxml_count_agent_mean, axis=0)
-    res_match_raxml_count_agent_mean_sample_ci95 = 1.96 * \
-        res_match_raxml_count_agent_mean_sample_std / np.sqrt(n_samples)
+    # res_match_raxml_count_agent_mean_sample_std = np.std(res_match_raxml_count_agent_mean, axis=0)
+    # res_match_raxml_count_agent_mean_sample_ci95 = 1.96 * \
+    #    res_match_raxml_count_agent_mean_sample_std / np.sqrt(n_samples)
 
     res_diff_raxml = np.abs(res_max - test_mls_all_expended)
     res_diff_raxml_start_mean = np.mean(res_diff_raxml, axis=3)
     res_diff_raxml_start_mean_sample_mean = np.mean(res_diff_raxml_start_mean, axis=1)
     res_diff_raxml_start_mean_agent_mean = np.mean(res_diff_raxml_start_mean, axis=0)
     res_diff_raxml_start_mean_agent_mean_sample_mean = np.mean(res_diff_raxml_start_mean_agent_mean, axis=0)
-    res_diff_raxml_start_mean_agent_mean_sample_std = np.std(res_diff_raxml_start_mean_agent_mean, axis=0)
-    res_diff_raxml_start_mean_agent_mean_sample_ci95 = 1.96 * \
-        res_diff_raxml_start_mean_agent_mean_sample_std / np.sqrt(n_samples)
+    # res_diff_raxml_start_mean_agent_mean_sample_std = np.std(res_diff_raxml_start_mean_agent_mean, axis=0)
+    # res_diff_raxml_start_mean_agent_mean_sample_ci95 = 1.96 * \
+    #    res_diff_raxml_start_mean_agent_mean_sample_std / np.sqrt(n_samples)
 
     fig, ax1 = plt.subplots(figsize=(9, 5))
     color = 'tab:red'
@@ -72,10 +72,10 @@ def accuracy_over_checkpoints(evaluate_dir: Path, train_dataset: str, eval_datas
 
     ax1.plot(episode_nums, res_match_raxml_count_agent_mean_sample_mean, color=color, linewidth=2.0,
              label="Agents mean")
-    ax1.fill_between(episode_nums,
-                     res_match_raxml_count_agent_mean_sample_mean - res_match_raxml_count_agent_mean_sample_ci95,
-                     res_match_raxml_count_agent_mean_sample_mean + res_match_raxml_count_agent_mean_sample_ci95,
-                     alpha=0.2, color=color, label="95% CI")
+    # ax1.fill_between(episode_nums,
+    #                 res_match_raxml_count_agent_mean_sample_mean - res_match_raxml_count_agent_mean_sample_ci95,
+    #                 res_match_raxml_count_agent_mean_sample_mean + res_match_raxml_count_agent_mean_sample_ci95,
+    #                 alpha=0.2, color=color, label="95% CI")
 
     ax1.tick_params(axis='y', labelcolor=color)
     ax1.legend(loc='lower left', fontsize=9)
@@ -90,10 +90,10 @@ def accuracy_over_checkpoints(evaluate_dir: Path, train_dataset: str, eval_datas
 
     ax2.plot(episode_nums, res_diff_raxml_start_mean_agent_mean_sample_mean, color=color, linewidth=2.0,
              label="Agents mean")
-    ax2.fill_between(episode_nums,
-                     res_diff_raxml_start_mean_agent_mean_sample_mean - res_diff_raxml_start_mean_agent_mean_sample_ci95,
-                     res_diff_raxml_start_mean_agent_mean_sample_mean + res_diff_raxml_start_mean_agent_mean_sample_ci95,
-                     alpha=0.2, color=color, label="95% CI")
+    # ax2.fill_between(episode_nums,
+    #                 res_diff_raxml_start_mean_agent_mean_sample_mean - res_diff_raxml_start_mean_agent_mean_sample_ci95,
+    #                 res_diff_raxml_start_mean_agent_mean_sample_mean + res_diff_raxml_start_mean_agent_mean_sample_ci95,
+    #                 alpha=0.2, color=color, label="95% CI")
 
     ax2.tick_params(axis='y', labelcolor=color)
     ax2.legend(loc='lower right', fontsize=9)
