@@ -78,7 +78,7 @@ def accuracy_over_checkpoints(evaluate_dir: Path, train_dataset: str, eval_datas
     #                 alpha=0.2, color=color, label="95% CI")
 
     ax1.tick_params(axis='y', labelcolor=color)
-    ax1.legend(loc='lower left', fontsize=9)
+    ax1.legend(loc='upper left', fontsize=9)
 
     ax2 = ax1.twinx()
     color = 'tab:blue'
@@ -96,7 +96,7 @@ def accuracy_over_checkpoints(evaluate_dir: Path, train_dataset: str, eval_datas
     #                 alpha=0.2, color=color, label="95% CI")
 
     ax2.tick_params(axis='y', labelcolor=color)
-    ax2.legend(loc='lower right', fontsize=9)
+    ax2.legend(loc='upper right', fontsize=9)
 
     ax1.set_xticks(episode_nums)
     ax1.set_xticklabels(episode_nums, rotation=45)
