@@ -52,11 +52,20 @@ def accuracy_over_checkpoints(evaluate_dir: Path, train_dataset: str, eval_datas
     res_match_raxml_count_agent_mean_sample_ci95 = 1.96 * \
         res_match_raxml_count_agent_mean_sample_std / np.sqrt(n_samples)
 
-    fig, ax1 = plt.subplots(figsize=(9, 5))
-    ax1.set_xlabel("Episode")
-    ax1.set_ylabel(f"Number of starting trees matching RAxML (out of {n_start_trees})")
+    res_diff_raxml = res_max - test_mls_all_expended
+    res_diff_raxml_start_mean = np.mean(res_diff_raxml, axis=3)
+    res_diff_raxml_start_mean_sample_mean = np.mean(res_diff_raxml_start_mean, axis=1)
+    res_diff_raxml_start_mean_agent_mean = np.mean(res_diff_raxml_start_mean, axis=0)
+    res_diff_raxml_start_mean_agent_mean_sample_mean = np.mean(res_diff_raxml_start_mean_agent_mean, axis=0)
+    res_diff_raxml_start_mean_agent_mean_sample_std = np.std(res_diff_raxml_start_mean_agent_mean, axis=0)
+    res_diff_raxml_start_mean_agent_mean_sample_ci95 = 1.96 * \
+        res_diff_raxml_start_mean_agent_mean_sample_std / np.sqrt(n_samples)
 
+    fig, ax1 = plt.subplots(figsize=(9, 5))
     color = 'tab:red'
+    ax1.set_xlabel("Episode")
+    ax1.set_ylabel(f"Number of starting trees matching RAxML (out of {n_start_trees})", color=color)
+
     for a in range(n_agents):
         ax1.plot(episode_nums, res_match_raxml_count_sample_mean[a], color=color, alpha=0.4, linewidth=1.0,
                  label="_agent_trace" if a > 0 else "Agents")
@@ -70,6 +79,24 @@ def accuracy_over_checkpoints(evaluate_dir: Path, train_dataset: str, eval_datas
 
     ax1.tick_params(axis='y', labelcolor=color)
     ax1.legend(loc='lower left', fontsize=9)
+
+    ax2 = ax1.twinx()
+    color = 'tab:blue'
+    ax2.set_ylabel("Absolute difference from RAxML optimum", color=color)
+
+    for a in range(n_agents):
+        ax2.plot(episode_nums, res_diff_raxml_start_mean_sample_mean[a], color=color, alpha=0.4, linewidth=1.0,
+                 label="_agent_trace" if a > 0 else "Agents")
+
+    ax2.plot(episode_nums, res_diff_raxml_start_mean_agent_mean_sample_mean, color=color, linewidth=2.0,
+             label="Agents mean")
+    ax2.fill_between(episode_nums,
+                     res_diff_raxml_start_mean_agent_mean_sample_mean - res_diff_raxml_start_mean_agent_mean_sample_ci95,
+                     res_diff_raxml_start_mean_agent_mean_sample_mean + res_diff_raxml_start_mean_agent_mean_sample_ci95,
+                     alpha=0.2, color=color, label="95% CI")
+
+    ax2.tick_params(axis='y', labelcolor=color)
+    ax2.legend(loc='lower right', fontsize=9)
 
     ax1.set_xticks(episode_nums)
     ax1.set_xticklabels(episode_nums, rotation=45)
