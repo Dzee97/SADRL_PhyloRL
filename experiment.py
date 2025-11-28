@@ -50,10 +50,10 @@ train_common = dict(
     horizon=20,
     checkpoint_freq=1000,
     update_freq=1,
-    batch_size=256,
+    batch_size=128,
     hidden_dim=256,
     dropout_p=0.2,
-    replay_size=50_000,
+    replay_size=10_000,
     min_replay_start=1000,
     learning_rate=1e-5,
     weight_decay=1e-2,
@@ -83,7 +83,7 @@ soft_cfg = dict(
 
 # GNN agent parameters (based on Soft DQN)
 gnn_cfg = dict(
-    replay_alpha=0.0,
+    replay_alpha=0.6,
     replay_beta_start=0.4,
     replay_beta_frames=400_000,
     temp_alpha_init=4.0,

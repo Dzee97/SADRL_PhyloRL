@@ -10,7 +10,7 @@ from tree_hash import unrooted_tree_hash
 
 # Import GNN data structures (optional - only if using GNN agent)
 try:
-    from agents import GraphData, ActionEmbedding, make_edges_bidirectional
+    from agents import GraphData, make_edges_bidirectional
     import torch
     GNN_AVAILABLE = True
 except ImportError:

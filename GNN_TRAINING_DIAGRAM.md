@@ -29,13 +29,7 @@ EPISODE START
      │    │    │
      │    │    ├─ INPUT: GraphData + List[ActionEmbedding]
      │    │    │
-     │    │    ├─ TREE EMBEDDING CACHE CHECK:
-     │    │    │   • Cache key: (edge_index, node_features, edge_features)
-     │    │    │   • If cached: Return embedding instantly (~1ms)
-     │    │    │   • If miss: Compute GNN forward pass (~35ms)
-     │    │    │   • Cache hit rate: ~80-90% after warmup
-     │    │    │
-     │    │    ├─ GNN FORWARD PASS (only on cache miss):
+     │    │    ├─ GNN FORWARD PASS:
      │    │    │   ┌──────────────────────────────────────┐
      │    │    │   │ Tree Encoding (encode_tree):         │
      │    │    │   │   • Node encoder: [1] → [256]       │
@@ -51,10 +45,6 @@ EPISODE START
      │    │    │   
      │    │   For EACH action:
      │    │    │   ┌──────────────────────────────────────┐
-     │    │    │   │ Action Tensor Cache:                 │
-     │    │    │   │   • Convert ActionEmbedding → tensor │
-     │    │    │   │   • Cached by node indices          │
-     │    │    │   │   • Reused across episodes          │
      │    │    │   │ Action Encoding:                     │
      │    │    │   │   • Action encoder: [7] → [256]     │
      │    │    │   │ Q-Value Computation:                 │
@@ -239,11 +229,9 @@ TREE EMBEDDING [768]
 │   - Next action lists: ~2MB                      │
 │   - Scalars (rewards, dones, priorities): <1MB  │
 ├─────────────────────────────────────────────────┤
-│ TREE EMBEDDING CACHE (~30MB, grows over time)   │
-│   - Cached GNN outputs: [768] per tree          │
-│   - ~10,000 unique trees × 3KB each             │
-│   - Key: graph structure hash                    │
-│   - 80-90% hit rate after warmup                │
+│ TREE EMBEDDING CACHE (REMOVED)                    │
+│   - Removed to prevent memory leaks                 │
+│   - GNN forward pass computed every step            │
 ├─────────────────────────────────────────────────┤
 │ TRAINING BATCH (~100MB during update)           │
 │   - 128 batched graphs                           │
@@ -271,10 +259,10 @@ TREE EMBEDDING [768]
 TIMING PER EPISODE (after caches warm up ~100 episodes):
 ┌────────────────────────────────────┐
 │ Environment Reset:    ~30ms  (0.3%) │
-│ Action Selection:     ~27ms  (3%)   │ ✅ Tree embedding cache
+│ Action Selection:     ~45ms  (5%)   │
 │ Environment Step:     ~31ms  (3%)   │
 │ Replay Push:          ~1ms   (0%)   │
-│ Agent Update:         ~400ms (94%)  │ ✅ Action tensor cache + batching
+│ Agent Update:         ~400ms (92%)  │ ✅ Batching
 ├────────────────────────────────────┤
 │ TOTAL PER STEP:       ~489ms        │
 │ TOTAL PER EPISODE:    ~9.8s (20 steps with updates) │
@@ -291,7 +279,6 @@ OPTIMIZED UPDATE BREAKDOWN (400ms):
   
   - Action encoding/Q-heads:  ~25% (100ms)
     * Batch action encoding
-    * Tensor cache hits: ~90%
     * MLP forward passes
   
   - Target computation:       ~25% (100ms)
@@ -330,32 +317,15 @@ CACHE PERFORMANCE:
    - Bidirectional edges for unrooted trees
    - Residual connections in GAT layers
 
-✅ TREE EMBEDDING CACHE:
-   - Caches GNN forward pass outputs (4 GAT layers)
-   - Key: (edge_index, node_features, edge_features)
-   - Stored on GPU in agent.tree_embedding_cache
-   - 80-90% hit rate after warmup
-   - Saves ~30ms per action selection
-   - Memory: ~30MB for 10K unique trees
-
-✅ ACTION TENSOR CACHE:
-   - Caches converted action tensors in ActionEmbedding objects
-   - Key: (4 node indices, device)
-   - Persists across episodes via replay buffer
-   - 90%+ hit rate from replay reuse
-   - Saves ~2.5s per update (2560 conversions → instant lookups)
-   - Memory: ~10MB for 10K actions
-
 ✅ MANUAL MAX POOLING:
    - Replaced global_max_pool to avoid torch-scatter dependency
    - Prevents slow CPU fallback
    - Simple loop over batch dimension
 
 📊 PERFORMANCE GAINS:
-   - Action selection: 39ms → 27ms (30% faster)
    - Agent update: 3300ms → 400ms (8x faster!)
-   - Episode time: ~66s → ~9.8s (6.7x faster!)
-   - 30K training: 23 days → 3.4 days (feasible!)
+   - Episode time: ~66s → ~10s (6.6x faster!)
+   - 30K training: 23 days → 3.5 days (feasible!)
 ```
 
 ## Comparison: Hand-Crafted vs GNN

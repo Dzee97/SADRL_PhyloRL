@@ -78,55 +78,6 @@ def make_edges_bidirectional(edge_index: torch.Tensor, edge_features: torch.Tens
     return bidirectional_edge_index, bidirectional_edge_features
 
 
-@dataclass
-class ActionEmbedding:
-    """Stores action representation using stable node names."""
-    prune_inner: str        # Node names (stable across tree representations)
-    prune_outer: str
-    regraft_inner: str
-    regraft_outer: str
-    distance: float         # Topological distance
-    prune_dist: float       # Branch length being pruned
-    regraft_dist: float     # Branch length at regraft location
-    
-    def __post_init__(self):
-        """Initialize tensor cache."""
-        self._tensor_cache = {}
-    
-    def to_tensor(self, name_to_idx: Dict[str, int], device) -> torch.Tensor:
-        """Convert to tensor using name-to-index mapping with caching."""
-        # Create cache key from node indices (metadata floats are part of the tensor, not key)
-        cache_key = (
-            name_to_idx[self.prune_inner],
-            name_to_idx[self.prune_outer],
-            name_to_idx[self.regraft_inner],
-            name_to_idx[self.regraft_outer],
-            str(device)
-        )
-        
-        # Check cache first (avoids repeated tensor creation)
-        if hasattr(self, '_tensor_cache') and cache_key in self._tensor_cache:
-            return self._tensor_cache[cache_key]
-        
-        # Create tensor if not cached
-        tensor = torch.tensor([
-            name_to_idx[self.prune_inner],
-            name_to_idx[self.prune_outer],
-            name_to_idx[self.regraft_inner],
-            name_to_idx[self.regraft_outer],
-            self.distance,
-            self.prune_dist,
-            self.regraft_dist
-        ], dtype=torch.float32, device=device)
-        
-        # Cache it for future use
-        if not hasattr(self, '_tensor_cache'):
-            self._tensor_cache = {}
-        self._tensor_cache[cache_key] = tensor
-        
-        return tensor
-
-
 # ------------------------- SIMPLE Q NETWORK -------------------------
 
 
@@ -708,8 +659,9 @@ class GNNPrioritizedReplayBuffer:
             next_tree_graph = next_tree_graph.to(self.device)
             
         # Convert actions to tensors immediately -> already tensors!
-        action_tensor = action_embedding.to(self.device)
-        next_action_tensor = next_action_embeddings.to(self.device)
+        # CRITICAL: Detach to prevent memory leaks from computation graph!
+        action_tensor = action_embedding.to(self.device).detach()
+        next_action_tensor = next_action_embeddings.to(self.device).detach()
         
         # OPTIMIZATION: Store PyG Data objects directly to avoid recreation in update loop
         # We attach node_name_to_idx to the Data object so we can use it later if needed
@@ -844,11 +796,6 @@ class GNNSoftQAgent:
         self.optimizer1 = optim.AdamW(self.q1.parameters(), lr=learning_rate, weight_decay=weight_decay)
         self.optimizer2 = optim.AdamW(self.q2.parameters(), lr=learning_rate, weight_decay=weight_decay)
         
-        # Tree embedding cache: stores expensive GNN forward passes (39ms each)
-        # Key: hash of (edge_index, node_features, edge_features)
-        # Value: tree_embedding tensor [3*hidden_dim] on GPU
-        self.tree_embedding_cache = {}
-        
         # EFFICIENCY: 80GB A100 - store EVERYTHING on GPU!
         self.replay = GNNPrioritizedReplayBuffer(replay_size, replay_alpha, self.device)
     
@@ -880,21 +827,8 @@ class GNNSoftQAgent:
                 edge_attr=tree_graph.edge_features
             )
             
-            # EFFICIENCY: Check tree embedding cache first!
-            # Create cache key from graph structure (edge topology + features)
-            cache_key = (
-                tuple(tree_graph.edge_index.flatten().cpu().tolist()),
-                tuple(tree_graph.node_features.flatten().cpu().tolist()),
-                tuple(tree_graph.edge_features.flatten().cpu().tolist())
-            )
-            
-            if cache_key in self.tree_embedding_cache:
-                tree_embedding, node_embeddings = self.tree_embedding_cache[cache_key]
-            else:
-                # Encode tree through 4 GAT layers (expensive!)
-                tree_embedding, node_embeddings = self.q1.encode_tree(graph_data)
-                # Cache it for future use
-                self.tree_embedding_cache[cache_key] = (tree_embedding, node_embeddings)
+            # Encode tree through GAT layers
+            tree_embedding, node_embeddings = self.q1.encode_tree(graph_data)
             
             # EFFICIENCY: Batch all action embeddings
             # action_embeddings is already a tensor [num_actions, action_dim]
