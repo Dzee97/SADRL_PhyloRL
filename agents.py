@@ -245,6 +245,10 @@ class DQNAgent:
         path.parent.mkdir(parents=True, exist_ok=True)
         torch.save(self.q_net.state_dict(), str(path))
 
+    def load(self, path: Path):
+        self.q_net.load_state_dict(torch.load(path, map_location=self.device))
+        self.target_net.load_state_dict(self.q_net.state_dict())
+
 
 # ------------------------- SOFT Q-learning AGENT (CLIPPED DOUBLE Q) -------------------------
 
@@ -368,6 +372,13 @@ class SoftQAgent:
         path.parent.mkdir(parents=True, exist_ok=True)
         torch.save(self.q1.state_dict(), str(path))
 
+    def load(self, path: Path):
+        state_dict = torch.load(path, map_location=self.device)
+        self.q1.load_state_dict(state_dict)
+        self.q2.load_state_dict(state_dict) # Initialize q2 with q1 weights since we only saved q1
+        self.target_q1.load_state_dict(state_dict)
+        self.target_q2.load_state_dict(state_dict)
+
 
 # ------------------------- GNN Q NETWORK -------------------------
 
@@ -388,7 +399,8 @@ class GNNQNetwork(nn.Module):
     """
     
     def __init__(self, node_feat_dim, edge_feat_dim, action_dim, hidden_dim, 
-                 num_gat_layers=3, num_attention_heads=4, dropout_p=0.0, num_action_node_indices=4):
+                 num_gat_layers=3, num_attention_heads=4, dropout_p=0.0, num_action_node_indices=4,
+                 num_action_layers=2, num_q_layers=3):
         super().__init__()
         
         if not TORCH_GEOMETRIC_AVAILABLE:
@@ -421,24 +433,36 @@ class GNNQNetwork(nn.Module):
         # Input: (4 * hidden_dim for node embeddings) + (action_dim - 4 for metadata)
         mlp_input_dim = (num_action_node_indices * hidden_dim) + (action_dim - num_action_node_indices)
         
-        self.action_encoder = nn.Sequential(
-            nn.Linear(mlp_input_dim, hidden_dim),
-            nn.ReLU(),
-            nn.Dropout(dropout_p),
-            nn.Linear(hidden_dim, hidden_dim),
-            nn.ReLU()
-        )
+        action_layers = []
+        curr_dim = mlp_input_dim
+        for i in range(num_action_layers):
+            action_layers.append(nn.Linear(curr_dim, hidden_dim))
+            action_layers.append(nn.ReLU())
+            # Add dropout between layers (not after the last one if we want to keep features clean, 
+            # but original had it in middle. Let's add it for all but last)
+            if i < num_action_layers - 1:
+                action_layers.append(nn.Dropout(dropout_p))
+            curr_dim = hidden_dim
+            
+        self.action_encoder = nn.Sequential(*action_layers)
         
-        # Final Q-value head (matches hand-crafted 3-layer MLP structure)
+        # Final Q-value head
         # Input: tree_emb (3×hidden_dim from sum+mean+max) + action_emb (hidden_dim) = 4×hidden_dim
-        self.q_head = nn.Sequential(
-            nn.Linear(hidden_dim * 4, hidden_dim),
-            nn.ReLU(),
-            nn.Dropout(dropout_p),
-            nn.Linear(hidden_dim, hidden_dim),
-            nn.ReLU(),
-            nn.Linear(hidden_dim, 1)
-        )
+        q_input_dim = hidden_dim * 4
+        q_layers = []
+        curr_dim = q_input_dim
+        
+        # Hidden layers
+        for i in range(num_q_layers - 1):
+            q_layers.append(nn.Linear(curr_dim, hidden_dim))
+            q_layers.append(nn.ReLU())
+            q_layers.append(nn.Dropout(dropout_p))
+            curr_dim = hidden_dim
+            
+        # Output layer
+        q_layers.append(nn.Linear(curr_dim, 1))
+        
+        self.q_head = nn.Sequential(*q_layers)
     
     def _validate_bidirectional_edges(self, edge_index: torch.Tensor):
         """Validate that edges are bidirectional (for unrooted trees).
@@ -758,7 +782,8 @@ class GNNSoftQAgent:
     
     def __init__(self, node_feat_dim, edge_feat_dim, action_dim, hidden_dim, 
                  num_gat_layers, num_attention_heads, dropout_p, learning_rate, 
-                 weight_decay, gamma, tau, temp_alpha_init, replay_size, replay_alpha, device=None):
+                 weight_decay, gamma, tau, temp_alpha_init, replay_size, replay_alpha, device=None,
+                 num_action_layers=2, num_q_layers=3):
         
         if not TORCH_GEOMETRIC_AVAILABLE:
             raise ImportError("torch_geometric required for GNN agents")
@@ -779,14 +804,18 @@ class GNNSoftQAgent:
         
         # Clipped double Q networks
         self.q1 = GNNQNetwork(node_feat_dim, edge_feat_dim, action_dim, hidden_dim,
-                              num_gat_layers, num_attention_heads, dropout_p).to(self.device)
+                              num_gat_layers, num_attention_heads, dropout_p,
+                              num_action_layers=num_action_layers, num_q_layers=num_q_layers).to(self.device)
         self.q2 = GNNQNetwork(node_feat_dim, edge_feat_dim, action_dim, hidden_dim,
-                              num_gat_layers, num_attention_heads, dropout_p).to(self.device)
+                              num_gat_layers, num_attention_heads, dropout_p,
+                              num_action_layers=num_action_layers, num_q_layers=num_q_layers).to(self.device)
         
         self.target_q1 = GNNQNetwork(node_feat_dim, edge_feat_dim, action_dim, hidden_dim,
-                                      num_gat_layers, num_attention_heads).to(self.device)
+                                      num_gat_layers, num_attention_heads,
+                                      num_action_layers=num_action_layers, num_q_layers=num_q_layers).to(self.device)
         self.target_q2 = GNNQNetwork(node_feat_dim, edge_feat_dim, action_dim, hidden_dim,
-                                      num_gat_layers, num_attention_heads).to(self.device)
+                                      num_gat_layers, num_attention_heads,
+                                      num_action_layers=num_action_layers, num_q_layers=num_q_layers).to(self.device)
         
         self.target_q1.load_state_dict(self.q1.state_dict())
         self.target_q2.load_state_dict(self.q2.state_dict())
@@ -956,6 +985,15 @@ class GNNSoftQAgent:
         
         return (loss1.item() + loss2.item()) / 2, policy_entropy.item()
     
+    def load(self, path: Path):
+        checkpoint = torch.load(path, map_location=self.device)
+        self.q1.load_state_dict(checkpoint['q1_state_dict'])
+        self.q2.load_state_dict(checkpoint['q2_state_dict'])
+        self.target_q1.load_state_dict(checkpoint['q1_state_dict'])
+        self.target_q2.load_state_dict(checkpoint['q2_state_dict'])
+        with torch.no_grad():
+             self.log_alpha.fill_(checkpoint['log_alpha'])
+
     def save(self, path: Path):
         """Save model weights."""
         path.parent.mkdir(parents=True, exist_ok=True)

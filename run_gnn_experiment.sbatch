@@ -3,10 +3,10 @@
 #SBATCH --partition=gpu-a100-80g
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task=20
+#SBATCH --cpus-per-task=50
 #SBATCH --mem=80G
 #SBATCH --gres=gpu:a100:1
-#SBATCH --time=120:00:00
+#SBATCH --time=167:00:00
 #SBATCH --output=%x_%j.out
 #SBATCH --error=%x_%j.err
 

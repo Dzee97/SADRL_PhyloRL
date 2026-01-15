@@ -42,16 +42,19 @@ class GNNEvalAgent:
     """Evaluation agent for GNN-based models."""
     
     def __init__(self, node_feat_dim, edge_feat_dim, action_dim, hidden_dim, 
-                 num_gat_layers, num_attention_heads, q1_state_dict, q2_state_dict, device=None):
+                 num_gat_layers, num_attention_heads, q1_state_dict, q2_state_dict, 
+                 num_action_layers=2, num_q_layers=3, device=None):
         if not TORCH_GEOMETRIC_AVAILABLE:
             raise ImportError("torch_geometric required for GNN evaluation")
             
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
         
         self.q1 = GNNQNetwork(node_feat_dim, edge_feat_dim, action_dim, hidden_dim,
-                              num_gat_layers, num_attention_heads).to(self.device)
+                              num_gat_layers, num_attention_heads, num_action_layers=num_action_layers,
+                              num_q_layers=num_q_layers).to(self.device)
         self.q2 = GNNQNetwork(node_feat_dim, edge_feat_dim, action_dim, hidden_dim,
-                              num_gat_layers, num_attention_heads).to(self.device)
+                              num_gat_layers, num_attention_heads, num_action_layers=num_action_layers,
+                              num_q_layers=num_q_layers).to(self.device)
         
         self.q1.load_state_dict(q1_state_dict)
         self.q2.load_state_dict(q2_state_dict)
@@ -72,18 +75,15 @@ class GNNEvalAgent:
             )
             
             # Encode tree once
-            tree_embedding_q1 = self.q1.encode_tree(pyg_graph)
-            tree_embedding_q2 = self.q2.encode_tree(pyg_graph)
+            tree_emb_q1, node_embs_q1 = self.q1.encode_tree(pyg_graph)
+            tree_emb_q2, node_embs_q2 = self.q2.encode_tree(pyg_graph)
             
             # Batch all action embeddings
-            action_tensors = torch.stack([
-                action_emb.to_tensor(graph_data.node_name_to_idx, self.device)
-                for action_emb in action_embeddings
-            ])
+            action_tensors = action_embeddings.to(self.device)
             
             # Get Q-values from both networks
-            q1_vals = self.q1(pyg_graph, action_tensors, tree_embedding=tree_embedding_q1)
-            q2_vals = self.q2(pyg_graph, action_tensors, tree_embedding=tree_embedding_q2)
+            q1_vals = self.q1(pyg_graph, action_tensors, tree_embedding=tree_emb_q1, node_embeddings=node_embs_q1)
+            q2_vals = self.q2(pyg_graph, action_tensors, tree_embedding=tree_emb_q2, node_embeddings=node_embs_q2)
             
             # Use minimum for conservative evaluation
             q_vals = torch.min(q1_vals, q2_vals)
@@ -104,18 +104,15 @@ class GNNEvalAgent:
             )
             
             # Encode tree once
-            tree_embedding_q1 = self.q1.encode_tree(pyg_graph)
-            tree_embedding_q2 = self.q2.encode_tree(pyg_graph)
+            tree_emb_q1, node_embs_q1 = self.q1.encode_tree(pyg_graph)
+            tree_emb_q2, node_embs_q2 = self.q2.encode_tree(pyg_graph)
             
             # Batch all action embeddings
-            action_tensors = torch.stack([
-                action_emb.to_tensor(graph_data.node_name_to_idx, self.device)
-                for action_emb in action_embeddings
-            ])
+            action_tensors = action_embeddings.to(self.device)
             
             # Get Q-values from both networks
-            q1_vals = self.q1(pyg_graph, action_tensors, tree_embedding=tree_embedding_q1)
-            q2_vals = self.q2(pyg_graph, action_tensors, tree_embedding=tree_embedding_q2)
+            q1_vals = self.q1(pyg_graph, action_tensors, tree_embedding=tree_emb_q1, node_embeddings=node_embs_q1)
+            q2_vals = self.q2(pyg_graph, action_tensors, tree_embedding=tree_emb_q2, node_embeddings=node_embs_q2)
             
             # Use minimum for conservative evaluation
             q_vals = torch.min(q1_vals, q2_vals)
@@ -532,13 +529,16 @@ def evaluate_checkpoints(samples_dir: Path, start_tree_set: str, checkpoints_dir
 
 def evaluate_gnn_checkpoints(samples_dir: Path, start_tree_set: str, checkpoints_dir: Path, hidden_dim: int,
                              evaluate_dir: Path, raxmlng_path: Path, horizon: int, top_k_reward: int, n_jobs: int,
-                             num_gat_layers: int = 3, num_attention_heads: int = 4):
+                             num_gat_layers: int = 3, num_attention_heads: int = 4,
+                             num_action_layers: int = 2, num_q_layers: int = 3):
     """
     Evaluate GNN agents across their checkpoints in parallel.
     
     Args:
         num_gat_layers: Number of GAT layers (must match training)
         num_attention_heads: Number of attention heads (must match training)
+        num_action_layers: Number of action encoder MLP layers (must match training)
+        num_q_layers: Number of Q-value MLP layers (must match training)
     """
 
     # ---- Safety check for existing output ----
@@ -607,7 +607,9 @@ def evaluate_gnn_checkpoints(samples_dir: Path, start_tree_set: str, checkpoints
                 num_gat_layers=num_gat_layers,
                 num_attention_heads=num_attention_heads,
                 q1_state_dict=checkpoint['q1_state_dict'],
-                q2_state_dict=checkpoint['q2_state_dict']
+                q2_state_dict=checkpoint['q2_state_dict'],
+                num_action_layers=num_action_layers,
+                num_q_layers=num_q_layers
             )
 
             for sample_idx in range(num_samples):

@@ -177,7 +177,7 @@ def train_gnn_agent_process(agent_id, samples_dir, raxmlng_path, episodes, horiz
                             update_freq, hidden_dim, dropout_p, replay_size, replay_alpha, min_replay_start,
                             learning_rate, weight_decay, gamma, temp_alpha_init, entropy_frames, entropy_start,
                             entropy_end, replay_beta_start, replay_beta_frames, tau, batch_size,
-                            num_gat_layers, num_attention_heads):
+                            num_gat_layers, num_attention_heads, num_action_layers=2, num_q_layers=3):
     """Training function for GNN-based Soft Q agent."""
     import time
     torch.set_num_threads(1)
@@ -218,11 +218,31 @@ def train_gnn_agent_process(agent_id, samples_dir, raxmlng_path, episodes, horiz
         tau=tau,
         temp_alpha_init=temp_alpha_init,
         replay_size=replay_size,
-        replay_alpha=replay_alpha
+        replay_alpha=replay_alpha,
+        num_action_layers=num_action_layers,
+        num_q_layers=num_q_layers
     )
     print(f"[GNN Agent {agent_id}] Initialized agent (took {time.time() - t0:.2f}s)")
 
-    step_counter = 0
+    start_ep = 0
+    # Check for existing checkpoints
+    existing_ckpts = list(Path(checkpoint_dir).glob(f"gnn_agent_{agent_id}_ep*.pt"))
+    if existing_ckpts:
+        ep_nums = []
+        for p in existing_ckpts:
+            try:
+                ep_num = int(p.stem.split("_ep")[-1])
+                ep_nums.append(ep_num)
+            except ValueError:
+                pass
+        if ep_nums:
+            start_ep = max(ep_nums)
+            latest_ckpt = Path(checkpoint_dir) / f"gnn_agent_{agent_id}_ep{start_ep}.pt"
+            print(f"[GNN Agent {agent_id}] Found existing checkpoint: {latest_ckpt}. Loading...")
+            agent.load(latest_ckpt)
+            print(f"[GNN Agent {agent_id}] Resuming from episode {start_ep}")
+
+    step_counter = start_ep * horizon
     num_actions = len(action_embeddings)
 
     # Target entropy schedule
@@ -232,7 +252,7 @@ def train_gnn_agent_process(agent_id, samples_dir, raxmlng_path, episodes, horiz
 
     print(f"[GNN Agent {agent_id}] Starting training: {episodes} episodes, {horizon} horizon")
 
-    for ep in range(episodes):
+    for ep in range(start_ep, episodes):
         ep_start = time.time()
         
         t0 = time.time()
@@ -351,13 +371,8 @@ def train_gnn_agent_process(agent_id, samples_dir, raxmlng_path, episodes, horiz
 def run_parallel_training(algorithm, samples_dir, raxmlng_path, n_agents, n_cores, checkpoint_dir, training_hps):
     # ---- Check for existing checkpoint directory ----
     if checkpoint_dir.exists():
-        answer = input(f"Checkpoint directory '{checkpoint_dir}' already exists. Overwrite? [y/N]: ").strip().lower()
-        if answer not in {"y", "yes"}:
-            print("Aborting — existing checkpoint directory preserved.")
-            return
-        print(f"Removing existing directory: {checkpoint_dir}")
-        shutil.rmtree(checkpoint_dir)
-
+        print(f"Checkpoint directory '{checkpoint_dir}' already exists. Resuming training if checkpoints found.")
+    
     os.makedirs(checkpoint_dir, exist_ok=True)
     n_cores = n_cores or min(os.cpu_count(), n_agents)
 

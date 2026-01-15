@@ -14,16 +14,32 @@ from joblib import Parallel, delayed
 
 # ---------- Helpers ----------
 
-def run_cmd(cmd: List[str], check: bool = True, quiet: bool = False):
-    """Run a shell command, optionally silencing output."""
-    if quiet:
-        proc = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    else:
-        proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-        print(proc.stdout)
-    if check and proc.returncode != 0:
-        raise RuntimeError(f"Command {' '.join(cmd)} failed with exit code {proc.returncode}")
-    return proc
+import time
+
+def run_cmd(cmd: List[str], check: bool = True, quiet: bool = False, max_retries: int = 5):
+    """Run a shell command, optionally silencing output. Retries on PermissionError."""
+    attempt = 0
+    while True:
+        try:
+            if quiet:
+                proc = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            else:
+                proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+                print(proc.stdout)
+            
+            if check and proc.returncode != 0:
+                raise RuntimeError(f"Command {' '.join(cmd)} failed with exit code {proc.returncode}")
+            return proc
+            
+        except PermissionError as e:
+            attempt += 1
+            if attempt >= max_retries:
+                raise e
+            # Exponential backoff: 0.1s, 0.2s, 0.4s, 0.8s, 1.6s
+            wait_time = 0.1 * (2 ** (attempt - 1))
+            if not quiet:
+                print(f"PermissionError executing command. Retrying ({attempt}/{max_retries}) in {wait_time:.1f}s...")
+            time.sleep(wait_time)
 
 
 def create_subsample_fasta(full_fasta: Path, out_fasta: Path, sample_names: List[str]):

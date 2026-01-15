@@ -15,9 +15,9 @@ DEPS_DIR = Path("dependencies")
 DATASETS_DIR = Path("datasets")
 
 # Dependencies
-raxmlng_path = DEPS_DIR / "raxmlng" / "raxml-ng"
-mafft_path = DEPS_DIR / "mafft-linux64" / "mafft.bat"
-input_fasta = DATASETS_DIR / "051_856_p__Basidiomycota_c__Agaricomycetes_o__Russulales.fasta"
+raxmlng_path = (DEPS_DIR / "raxmlng" / "raxml-ng").resolve()
+mafft_path = (DEPS_DIR / "mafft-linux64" / "mafft.bat").resolve()
+input_fasta = (DATASETS_DIR / "051_856_p__Basidiomycota_c__Agaricomycetes_o__Russulales.fasta").resolve()
 
 # Sampling parameters
 sampling_cfg = dict(
@@ -46,12 +46,12 @@ n_agents = 5
 
 # Training parameters (shared)
 train_common = dict(
-    episodes=30_000,
+    episodes=80_000,
     horizon=20,
     checkpoint_freq=1000,
     update_freq=1,
     batch_size=128,
-    hidden_dim=256,
+    hidden_dim=512,
     dropout_p=0.2,
     replay_size=10_000,
     min_replay_start=1000,
@@ -85,13 +85,15 @@ soft_cfg = dict(
 gnn_cfg = dict(
     replay_alpha=0.6,
     replay_beta_start=0.4,
-    replay_beta_frames=400_000,
+    replay_beta_frames=1_400_000,
     temp_alpha_init=4.0,
-    entropy_frames=400_000,
-    entropy_start=0.5,
-    entropy_end=0.5,
+    entropy_frames=1_000_000,
+    entropy_start=0.62,
+    entropy_end=0.01,
     num_gat_layers=4,        # GNN-specific
-    num_attention_heads=4    # GNN-specific
+    num_attention_heads=8,   # GNN-specific
+    num_action_layers=3,     # Deeper MLP
+    num_q_layers=4           # Deeper MLP
 )
 
 # Hash full parameters for file names
@@ -111,7 +113,9 @@ evaluate_cfg = dict(
 # GNN evaluation config (includes GNN-specific params)
 gnn_evaluate_cfg = evaluate_cfg | dict(
     num_gat_layers=gnn_cfg["num_gat_layers"],
-    num_attention_heads=gnn_cfg["num_attention_heads"]
+    num_attention_heads=gnn_cfg["num_attention_heads"],
+    num_action_layers=gnn_cfg["num_action_layers"],
+    num_q_layers=gnn_cfg["num_q_layers"]
 )
 
 
