@@ -8,16 +8,28 @@ from spr_feature_extractor import TreePreprocessor, perform_spr_move
 from sample_datasets import run_cmd
 from tree_hash import unrooted_tree_hash
 
+# Import GNN data structures (optional - only if using GNN agent)
+try:
+    from agents import GraphData, make_edges_bidirectional
+    import torch
+    GNN_AVAILABLE = True
+except ImportError:
+    GNN_AVAILABLE = False
+
 
 class PhyloEnv:
     """
     Gym-like environment for reinforcement learning in phylogenetic tree search.
     """
 
-    def __init__(self, samples_parent_dir: Path, raxmlng_path: Path, horizon: int):
+    def __init__(self, samples_parent_dir: Path, raxmlng_path: Path, horizon: int, use_gnn: bool = False):
         self.samples_parent_dir = Path(samples_parent_dir)
         self.raxmlng_path = Path(raxmlng_path)
         self.horizon = horizon
+        self.use_gnn = use_gnn
+        
+        if use_gnn and not GNN_AVAILABLE:
+            raise RuntimeError("use_gnn=True but GNN components not available. Install torch-geometric and ensure agents.py is present.")
 
         self.samples = []
         self.num_train_start_trees = []
@@ -68,7 +80,9 @@ class PhyloEnv:
         self.current_tree = None
         self.current_ll = None
         self.current_moves = None
-        self.current_feats = None
+        self.current_feats = None  # Hand-crafted features
+        self.current_graph = None  # GNN: GraphData
+        self.current_actions = None  # GNN: List[ActionEmbedding]
 
         self.tree_cache = {}
         self.cache_hits = 0
@@ -100,8 +114,12 @@ class PhyloEnv:
             start_tree_optim, self.current_ll = self._evaluate_likelihood(start_tree)
             self.tree_cache[tree_hash] = (start_tree_optim, self.current_ll)
 
-        self.current_tree, self.current_moves, self.current_feats = self._extract_features(start_tree_optim)
-        return tree_hash, self.current_feats
+        if self.use_gnn:
+            self.current_tree, self.current_moves, self.current_graph, self.current_actions = self._extract_features_gnn(start_tree_optim)
+            return tree_hash, (self.current_graph, self.current_actions)
+        else:
+            self.current_tree, self.current_moves, self.current_feats = self._extract_features(start_tree_optim)
+            return tree_hash, self.current_feats
 
     def step(self, move_idx):
         """
@@ -120,12 +138,18 @@ class PhyloEnv:
 
         reward = (neighbor_ll - self.current_ll)  # / abs(self.current_sample["norm_ll"])
 
-        self.current_tree, self.current_moves, self.current_feats = self._extract_features(neighbor_tree_optim)
+        if self.use_gnn:
+            self.current_tree, self.current_moves, self.current_graph, self.current_actions = self._extract_features_gnn(neighbor_tree_optim)
+            feats_return = (self.current_graph, self.current_actions)
+        else:
+            self.current_tree, self.current_moves, self.current_feats = self._extract_features(neighbor_tree_optim)
+            feats_return = self.current_feats
+            
         self.current_ll = neighbor_ll
         self.step_count += 1
         done = self.step_count >= self.horizon
 
-        return tree_hash, self.current_feats, reward, done
+        return tree_hash, feats_return, reward, done
 
     def preview_step(self, move_idx, calc_reward=False):
         """
@@ -148,7 +172,7 @@ class PhyloEnv:
         return tree_hash, reward
 
     def _extract_features(self, tree: Tree):
-        """Compute the feature vector for current tree."""
+        """Compute the hand-crafted feature vectors for current tree."""
         preproc = TreePreprocessor(tree)
         annotated_tree, possible_moves = preproc.get_possible_spr_moves()
         feats = preproc.extract_all_spr_features(
@@ -156,6 +180,104 @@ class PhyloEnv:
             split_support_upgma=self.current_sample["split_support_upgma_counter"],
             split_support_nj=self.current_sample["split_support_nj_counter"])
         return annotated_tree, possible_moves, feats
+    
+    def _extract_features_gnn(self, tree: Tree):
+        """Extract GNN-compatible graph data and action embeddings."""
+        preproc = TreePreprocessor(tree)
+        annotated_tree, possible_moves = preproc.get_possible_spr_moves()
+        
+        # Convert TreePreprocessor to GraphData
+        graph_data = self._preprocessor_to_graph_data(preproc)
+        
+        # Convert SPRMoves to ActionEmbeddings (Tensor)
+        action_embeddings = self._moves_to_action_embeddings(possible_moves, preproc, graph_data.node_name_to_idx)
+        
+        return annotated_tree, possible_moves, graph_data, action_embeddings
+    
+    def _preprocessor_to_graph_data(self, preproc: TreePreprocessor) -> GraphData:
+        """Convert TreePreprocessor to GraphData with bidirectional edges.
+        
+        Node features: [is_leaf] (1-dim binary)
+        Edge features: [branch_length] (1-dim)
+        """
+        # Build node features and name mapping
+        node_names = []
+        node_features_list = []
+        
+        # Use DFS order to assign consistent indices
+        def collect_nodes(node):
+            node_names.append(node.name)
+            # ATOMIC NODE FEATURE: Only "is_leaf" (1.0 if leaf, 0.0 if internal)
+            node_features_list.append([1.0 if node.is_leaf() else 0.0])
+            for child in node.children:
+                collect_nodes(child)
+        
+        collect_nodes(preproc.tree)
+        
+        # Create name to index mapping
+        node_name_to_idx = {name: idx for idx, name in enumerate(node_names)}
+        
+        # Create node features tensor [num_nodes, 1]
+        node_features = torch.tensor(node_features_list, dtype=torch.float32)
+        
+        # Build DIRECTED edges from preprocessor (child→parent)
+        edge_list_src = []
+        edge_list_dst = []
+        edge_features_list = []
+        
+        for child_node, parent_node in preproc.edges:
+            child_idx = node_name_to_idx[child_node.name]
+            parent_idx = node_name_to_idx[parent_node.name]
+            
+            edge_list_src.append(child_idx)
+            edge_list_dst.append(parent_idx)
+            
+            # ATOMIC EDGE FEATURE: Only "branch_length"
+            edge_features_list.append([child_node.dist])
+        
+        # Convert to tensors
+        edge_index_directed = torch.tensor([edge_list_src, edge_list_dst], dtype=torch.long)
+        edge_features_directed = torch.tensor(edge_features_list, dtype=torch.float32)
+        
+        # CRITICAL: Make edges BIDIRECTIONAL for unrooted tree representation!
+        edge_index, edge_features = make_edges_bidirectional(edge_index_directed, edge_features_directed)
+        
+        return GraphData(
+            node_features=node_features,
+            edge_index=edge_index,
+            edge_features=edge_features,
+            node_name_to_idx=node_name_to_idx
+        )
+    
+    def _moves_to_action_embeddings(self, possible_moves, preproc: TreePreprocessor, node_name_to_idx: dict):
+        """Convert SPRMoves to tensor using stable node names."""
+        action_data = []
+        
+        for move in possible_moves:
+            prune_edge, regraft_edge, lca = move
+            
+            # Extract node names from edges
+            prune_inner, prune_outer, _ = prune_edge
+            regraft_inner, regraft_outer, _ = regraft_edge
+            
+            # Compute topological distance
+            distance = preproc.depth_count[prune_inner] + preproc.depth_count[regraft_inner] - 2 * preproc.depth_count[lca]
+            
+            # Branch lengths
+            prune_dist = prune_edge.child_node.dist
+            regraft_dist = regraft_edge.child_node.dist
+            
+            action_data.append([
+                node_name_to_idx[prune_inner.name],
+                node_name_to_idx[prune_outer.name],
+                node_name_to_idx[regraft_inner.name],
+                node_name_to_idx[regraft_outer.name],
+                float(distance),
+                float(prune_dist),
+                float(regraft_dist)
+            ])
+        
+        return torch.tensor(action_data, dtype=torch.float32)
 
     def _evaluate_likelihood(self, tree: Tree):
         """

@@ -8,7 +8,13 @@ import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
 from pathlib import Path
 from environment import PhyloEnv
-from agents import QNetwork
+from agents import QNetwork, GNNQNetwork
+
+try:
+    from torch_geometric.data import Data
+    TORCH_GEOMETRIC_AVAILABLE = True
+except ImportError:
+    TORCH_GEOMETRIC_AVAILABLE = False
 
 
 class EvalAgent:
@@ -28,6 +34,89 @@ class EvalAgent:
         with torch.no_grad():
             x = torch.tensor(feats, dtype=torch.float32, device=self.device)
             q_vals = self.q_net(x)
+            q_vals_sorted, indices_sorted = torch.sort(q_vals, descending=True)
+            return indices_sorted.cpu().numpy()
+
+
+class GNNEvalAgent:
+    """Evaluation agent for GNN-based models."""
+    
+    def __init__(self, node_feat_dim, edge_feat_dim, action_dim, hidden_dim, 
+                 num_gat_layers, num_attention_heads, q1_state_dict, q2_state_dict, 
+                 num_action_layers=2, num_q_layers=3, device=None):
+        if not TORCH_GEOMETRIC_AVAILABLE:
+            raise ImportError("torch_geometric required for GNN evaluation")
+            
+        self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
+        
+        self.q1 = GNNQNetwork(node_feat_dim, edge_feat_dim, action_dim, hidden_dim,
+                              num_gat_layers, num_attention_heads, num_action_layers=num_action_layers,
+                              num_q_layers=num_q_layers).to(self.device)
+        self.q2 = GNNQNetwork(node_feat_dim, edge_feat_dim, action_dim, hidden_dim,
+                              num_gat_layers, num_attention_heads, num_action_layers=num_action_layers,
+                              num_q_layers=num_q_layers).to(self.device)
+        
+        self.q1.load_state_dict(q1_state_dict)
+        self.q2.load_state_dict(q2_state_dict)
+        self.q1.eval()
+        self.q2.eval()
+
+    def select_best_action(self, graph_data, action_embeddings):
+        """Select single best action using min(Q1, Q2) for conservative evaluation."""
+        with torch.no_grad():
+            # Move graph to device
+            graph_data = graph_data.to(self.device)
+            
+            # Convert to PyG Data format
+            pyg_graph = Data(
+                x=graph_data.node_features,
+                edge_index=graph_data.edge_index,
+                edge_attr=graph_data.edge_features
+            )
+            
+            # Encode tree once
+            tree_emb_q1, node_embs_q1 = self.q1.encode_tree(pyg_graph)
+            tree_emb_q2, node_embs_q2 = self.q2.encode_tree(pyg_graph)
+            
+            # Batch all action embeddings
+            action_tensors = action_embeddings.to(self.device)
+            
+            # Get Q-values from both networks
+            q1_vals = self.q1(pyg_graph, action_tensors, tree_embedding=tree_emb_q1, node_embeddings=node_embs_q1)
+            q2_vals = self.q2(pyg_graph, action_tensors, tree_embedding=tree_emb_q2, node_embeddings=node_embs_q2)
+            
+            # Use minimum for conservative evaluation
+            q_vals = torch.min(q1_vals, q2_vals)
+            
+            return int(torch.argmax(q_vals).item())
+
+    def select_sorted_best_actions(self, graph_data, action_embeddings):
+        """Return actions sorted by Q-value (highest first)."""
+        with torch.no_grad():
+            # Move graph to device
+            graph_data = graph_data.to(self.device)
+            
+            # Convert to PyG Data format
+            pyg_graph = Data(
+                x=graph_data.node_features,
+                edge_index=graph_data.edge_index,
+                edge_attr=graph_data.edge_features
+            )
+            
+            # Encode tree once
+            tree_emb_q1, node_embs_q1 = self.q1.encode_tree(pyg_graph)
+            tree_emb_q2, node_embs_q2 = self.q2.encode_tree(pyg_graph)
+            
+            # Batch all action embeddings
+            action_tensors = action_embeddings.to(self.device)
+            
+            # Get Q-values from both networks
+            q1_vals = self.q1(pyg_graph, action_tensors, tree_embedding=tree_emb_q1, node_embeddings=node_embs_q1)
+            q2_vals = self.q2(pyg_graph, action_tensors, tree_embedding=tree_emb_q2, node_embeddings=node_embs_q2)
+            
+            # Use minimum for conservative evaluation
+            q_vals = torch.min(q1_vals, q2_vals)
+            
             q_vals_sorted, indices_sorted = torch.sort(q_vals, descending=True)
             return indices_sorted.cpu().numpy()
 
@@ -436,3 +525,146 @@ def evaluate_checkpoints(samples_dir: Path, start_tree_set: str, checkpoints_dir
     np.save(evaluate_dir / "test_mls_best.npy", test_mls_best)
     np.save(evaluate_dir / "episode_nums.npy", episode_nums)
     print(f"✅ Evaluation completed and saved to {evaluate_dir}")
+
+
+def evaluate_gnn_checkpoints(samples_dir: Path, start_tree_set: str, checkpoints_dir: Path, hidden_dim: int,
+                             evaluate_dir: Path, raxmlng_path: Path, horizon: int, top_k_reward: int, n_jobs: int,
+                             num_gat_layers: int = 3, num_attention_heads: int = 4,
+                             num_action_layers: int = 2, num_q_layers: int = 3):
+    """
+    Evaluate GNN agents across their checkpoints in parallel.
+    
+    Args:
+        num_gat_layers: Number of GAT layers (must match training)
+        num_attention_heads: Number of attention heads (must match training)
+        num_action_layers: Number of action encoder MLP layers (must match training)
+        num_q_layers: Number of Q-value MLP layers (must match training)
+    """
+
+    # ---- Safety check for existing output ----
+    if evaluate_dir.exists():
+        answer = input(f"Evaluation directory '{evaluate_dir}' already exists. Overwrite? [y/N]: ").strip().lower()
+        if answer not in {"y", "yes"}:
+            print("Aborting — existing output directory preserved.")
+            return
+        print(f"Removing existing directory: {evaluate_dir}")
+        shutil.rmtree(evaluate_dir)
+    os.makedirs(evaluate_dir, exist_ok=True)
+
+    # ---- Base environment in GNN mode (for metadata) ----
+    base_env = PhyloEnv(samples_dir, raxmlng_path, horizon=horizon, use_gnn=True)
+    tree_hash, (graph_data, action_embeddings) = base_env.reset(start_tree_set="test")
+    num_samples = len(base_env.samples)
+
+    if start_tree_set == "train":
+        num_start_trees = base_env.num_train_start_trees
+    elif start_tree_set == "test":
+        num_start_trees = base_env.num_test_start_trees
+    else:
+        raise ValueError('start_tree_set must either be "train" or "test"')
+
+    max_num_start_trees = max(num_start_trees)
+
+    # ---- Identify all agents & checkpoints ----
+    checkpoints_files = list(checkpoints_dir.glob("gnn_agent_*_ep*.pt"))
+    agent_nums, episode_nums = set(), set()
+    for f in checkpoints_files:
+        match = re.search(r"gnn_agent_(\d+)_ep(\d+)\.pt", str(f))
+        if match:
+            agent_nums.add(int(match.group(1)))
+            episode_nums.add(int(match.group(2)))
+
+    agent_nums = sorted(agent_nums)
+    episode_nums = np.array(sorted(episode_nums))
+    n_agents, n_checkpoints = len(agent_nums), len(episode_nums)
+
+    results = np.full((n_agents, num_samples, n_checkpoints, max_num_start_trees, horizon + 1), np.nan)
+    pars_lls = np.array([base_env.samples[i]["pars_ll"] for i in range(num_samples)])
+    test_mls_all = np.array([base_env.samples[i]["rand_test_trees_ml_list"] for i in range(num_samples)])
+    test_mls_best = np.array([base_env.samples[i]["rand_test_trees_ml_best"] for i in range(num_samples)])
+
+    # ---- Worker function (evaluates one agent across all checkpoints) ----
+    def eval_single_agent(agent_idx, agent_num):
+        torch.set_num_threads(1)
+        env = PhyloEnv(samples_dir, raxmlng_path, horizon=horizon, use_gnn=True)
+        agent_results = np.full((num_samples, n_checkpoints, max_num_start_trees, horizon + 1), np.nan)
+
+        print(f"[GNN Agent {agent_num}] Starting evaluation with {n_checkpoints} checkpoints")
+
+        for checkpoint_idx, episode_num in enumerate(episode_nums):
+            checkpoint_file = checkpoints_dir / f"gnn_agent_{agent_num}_ep{episode_num}.pt"
+            if not checkpoint_file.exists():
+                raise FileNotFoundError(f"Missing checkpoint: {checkpoint_file}")
+
+            print(f"[GNN Agent {agent_num}] → Checkpoint {checkpoint_idx+1}/{n_checkpoints} (episode {episode_num})")
+
+            checkpoint = torch.load(checkpoint_file, map_location="cpu")
+            agent = GNNEvalAgent(
+                node_feat_dim=1,  # [is_leaf]
+                edge_feat_dim=1,  # [branch_length]
+                action_dim=7,     # [4 indices + 3 metadata]
+                hidden_dim=hidden_dim,
+                num_gat_layers=num_gat_layers,
+                num_attention_heads=num_attention_heads,
+                q1_state_dict=checkpoint['q1_state_dict'],
+                q2_state_dict=checkpoint['q2_state_dict'],
+                num_action_layers=num_action_layers,
+                num_q_layers=num_q_layers
+            )
+
+            for sample_idx in range(num_samples):
+                for start_tree_idx in range(num_start_trees[sample_idx]):
+                    tree_hash, (graph_data, action_embeddings) = env.reset(
+                        sample_num=sample_idx, start_tree_set=start_tree_set, start_tree_num=start_tree_idx
+                    )
+                    ep_lls = [env.current_ll]
+                    visited_trees = {tree_hash}
+                    done = False
+                    
+                    while not done:
+                        action_idxs = agent.select_sorted_best_actions(graph_data, action_embeddings)
+                        highest_reward = -np.inf
+                        selected_action_idx = None
+                        actions_checked = 0
+
+                        for action_idx in action_idxs:
+                            preview_tree_hash, preview_reward = env.preview_step(action_idx, calc_reward=True)
+                            actions_checked += 1
+                            if preview_tree_hash in visited_trees:
+                                continue
+                            if preview_reward > highest_reward:
+                                highest_reward = preview_reward
+                                selected_action_idx = action_idx
+                            if actions_checked >= top_k_reward:
+                                break
+
+                        if selected_action_idx is None:
+                            break
+
+                        tree_hash, (graph_data, action_embeddings), reward, done = env.step(selected_action_idx)
+                        visited_trees.add(tree_hash)
+                        ep_lls.append(env.current_ll)
+
+                    agent_results[sample_idx, checkpoint_idx, start_tree_idx, :len(ep_lls)] = ep_lls
+
+        print(f"[GNN Agent {agent_num}] Finished evaluation.")
+        return agent_idx, agent_results
+
+    # ---- Run in parallel ----
+    print(f"Starting evaluation of {n_agents} GNN agents in parallel (n_jobs={n_jobs})...")
+    results_list = Parallel(n_jobs=n_jobs)(
+        delayed(eval_single_agent)(agent_idx, agent_num)
+        for agent_idx, agent_num in enumerate(agent_nums)
+    )
+
+    # ---- Merge results ----
+    for agent_idx, agent_results in results_list:
+        results[agent_idx, :, :, :, :] = agent_results
+
+    # ---- Save outputs ----
+    np.save(evaluate_dir / "results.npy", results)
+    np.save(evaluate_dir / "pars_lls.npy", pars_lls)
+    np.save(evaluate_dir / "test_mls_all.npy", test_mls_all)
+    np.save(evaluate_dir / "test_mls_best.npy", test_mls_best)
+    np.save(evaluate_dir / "episode_nums.npy", episode_nums)
+    print(f"✅ GNN Evaluation completed and saved to {evaluate_dir}")
