@@ -32,15 +32,12 @@ sampling_cfg = dict(
 # Experiment sets
 EXPERIMENTS = {
     # Sample size 9
-    # "Size9Samples1Train100Test20": dict(sample_size=9, num_samples=1,
-    #                                    num_rand_train_trees=100, num_rand_test_trees=20),
-    "Size9Samples50Train100Test20": dict(sample_size=9, num_samples=50,
-                                         num_rand_train_trees=100, num_rand_test_trees=20),
-    # "Size9Samples100Train100Test20": dict(sample_size=9, num_samples=100,
-    #                                      num_rand_train_trees=100, num_rand_test_trees=20),
-    # "Size9Samples500Train100Test20": dict(sample_size=9, num_samples=500,
-    #                                      num_rand_train_trees=100, num_rand_test_trees=20),
-    # "Size9ValidationSet50": dict(sample_size=9, num_samples=50, num_rand_train_trees=0, num_rand_test_trees=20),
+    "Size9Samples1Train100Test20": dict(sample_size=9, num_samples=1,
+                                        num_rand_train_trees=100, num_rand_test_trees=20),
+    "Size9Samples100Train100Test20": dict(sample_size=9, num_samples=100,
+                                          num_rand_train_trees=100, num_rand_test_trees=20),
+    "Size9Samples100Test20Validation": dict(sample_size=9, num_samples=100,
+                                            num_rand_train_trees=0, num_rand_test_trees=20),
 }
 
 # Set number of cores for parallel agent training and evaluation
@@ -57,11 +54,11 @@ train_common = dict(
     update_freq=1,
     batch_size=128,
     hidden_dim=256,
-    dropout_p=0.0,
+    dropout_p=0.2,
     replay_size=10_000,
     min_replay_start=1000,
     learning_rate=1e-5,
-    weight_decay=0.0,
+    weight_decay=1e-2,
     gamma=0.9,
     tau=0.005
 )
@@ -170,8 +167,7 @@ def run_evaluation(algorithm, set_type="test"):
 
         # Evaluate checkpoints on test trees on self, and on validation datasets with only test trees
         evaluate_samples_dirs = {n: BASE_DIR / n for n,
-                                 c in EXPERIMENTS.items() if (n == name or c["num_rand_train_trees"] == 0)
-                                 and c["num_samples"] <= 50}
+                                 c in EXPERIMENTS.items() if n == name or n.endswith("Validation")}
 
         for eval_name, evaluate_samples_dir in evaluate_samples_dirs.items():
             checkpoints_dir = samples_dir / f"{algorithm}_{hps_hash}" / "checkpoints"
@@ -197,7 +193,7 @@ if __name__ == "__main__":
     RUN_EVALUATION = True
 
     # set this flag to control which algorithm to run (DQN, SQL)
-    ALGORITHM = "DQN"
+    ALGORITHM = "SQL"
 
     if RUN_SAMPLING:
         run_sampling()

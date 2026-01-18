@@ -52,7 +52,7 @@ def accuracy_over_checkpoints(evaluate_dir: Path, train_dataset: str, eval_datas
     # res_match_raxml_count_agent_mean_sample_ci95 = 1.96 * \
     #    res_match_raxml_count_agent_mean_sample_std / np.sqrt(n_samples)
 
-    res_diff_raxml = np.abs(res_max - test_mls_all_expended)
+    res_diff_raxml = test_mls_all_expended - res_max
     res_diff_raxml_start_mean = np.mean(res_diff_raxml, axis=3)
     res_diff_raxml_start_mean_sample_mean = np.mean(res_diff_raxml_start_mean, axis=1)
     res_diff_raxml_start_mean_agent_mean = np.mean(res_diff_raxml_start_mean, axis=0)
@@ -82,7 +82,7 @@ def accuracy_over_checkpoints(evaluate_dir: Path, train_dataset: str, eval_datas
 
     ax2 = ax1.twinx()
     color = 'tab:blue'
-    ax2.set_ylabel("Absolute difference from RAxML optimum", color=color)
+    ax2.set_ylabel("LL difference from RAxML optimum", color=color)
 
     for a in range(n_agents):
         ax2.plot(episode_nums, res_diff_raxml_start_mean_sample_mean[a], color=color, alpha=0.4, linewidth=1.0,
