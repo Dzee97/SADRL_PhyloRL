@@ -32,6 +32,115 @@ class EvalAgent:
             return indices_sorted.cpu().numpy()
 
 
+def compare_over_checkpoints(
+        eval_configs,
+        metric: str,
+        train_dataset: str,
+        eval_dataset: str,
+        algorithm_name: str,
+        plot_dir: Path
+):
+    assert metric in {
+        "match_raxml_count",
+        "mean_ll_diff",
+        "steps_to_raxml",
+    }
+
+    EPS = 0.1
+
+    fig, ax = plt.subplots(figsize=(9, 5))
+    cmap = plt.get_cmap("tab10")
+
+    for idx, cfg in enumerate(eval_configs):
+        evaluate_dir = cfg["dir"]
+        label = cfg["label"]
+        color = cmap(idx % 10)
+
+        results = np.load(evaluate_dir / "results.npy")
+        test_mls_all = np.load(evaluate_dir / "test_mls_all.npy")
+        episode_nums = np.load(evaluate_dir / "episode_nums.npy")
+
+        n_agents, n_samples, n_checkpoints, n_start_trees, n_steps = results.shape
+
+        # Common quantities
+
+        # ========================
+        # Metric computations
+        # ========================
+
+        if metric == "match_raxml_count":
+            res_max = np.max(results, axis=4)
+            test_mls_all_exp = test_mls_all[np.newaxis, :, np.newaxis, :]
+
+            match = res_max >= test_mls_all_exp - EPS
+            per_agent = np.mean(np.sum(match, axis=3), axis=1)
+            mean_line = np.mean(per_agent, axis=0)
+            ylabel = f"# starting trees ≥ RAxML (out of {n_start_trees})"
+
+        elif metric == "mean_ll_diff":
+            res_max = np.max(results, axis=4)
+            test_mls_all_exp = test_mls_all[np.newaxis, :, np.newaxis, :]
+
+            diff = test_mls_all_exp - res_max
+            per_agent = np.mean(np.mean(diff, axis=3), axis=1)
+            mean_line = np.mean(per_agent, axis=0)
+            ylabel = "Mean LL difference to RAxML"
+
+        elif metric == "steps_to_raxml":
+            target = test_mls_all[np.newaxis, :, np.newaxis, :, np.newaxis] - EPS
+            hits = results >= target
+
+            matched = np.any(hits, axis=4)
+            first_hit_step = np.argmax(hits, axis=4).astype(float)
+            first_hit_step[~matched] = np.nan
+
+            per_agent = np.nanmean(np.nanmean(first_hit_step, axis=3), axis=1)
+            mean_line = np.nanmean(per_agent, axis=0)
+            ylabel = "Steps to reach ≥ RAxML"
+
+        # ========================
+        # Plotting
+        # ========================
+
+        for a in range(n_agents):
+            ax.plot(
+                episode_nums,
+                per_agent[a],
+                color=color,
+                alpha=0.3,
+                linewidth=1.0,
+                label="_agent_trace",
+            )
+
+        ax.plot(
+            episode_nums,
+            mean_line,
+            color=color,
+            linewidth=2.5,
+            label=label,
+        )
+
+    ax.set_xlabel("Episode")
+    ax.set_ylabel(ylabel)
+    ax.set_xticks(episode_nums)
+    ax.set_xticklabels(episode_nums, rotation=45)
+    ax.grid(alpha=0.3)
+
+    ax.set_title(
+        f"{algorithm_name} – Train: {train_dataset} – Eval: {eval_dataset}\n"
+        f"Comparison over checkpoints ({metric})"
+    )
+
+    ax.legend(fontsize=9)
+    fig.tight_layout()
+
+    out_file = plot_dir / f"compare_{metric}.png"
+    fig.savefig(out_file, dpi=150)
+    plt.close(fig)
+
+    print(f"Saved comparison plot to {out_file}")
+
+
 def accuracy_over_checkpoints(evaluate_dir: Path, train_dataset: str, eval_dataset: str, algorithm_name: str):
     results = np.load(evaluate_dir / "results.npy")
     test_mls_all = np.load(evaluate_dir / "test_mls_all.npy")

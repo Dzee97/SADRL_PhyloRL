@@ -4,7 +4,7 @@ from pathlib import Path
 from functools import partial
 from sample_datasets import sample_dataset
 from train_agents import run_parallel_training
-from evaluation import evaluate_checkpoints, plot_final_checkpoint_tables, accuracy_over_checkpoints
+from evaluation import evaluate_checkpoints
 
 
 # === CONFIGURATION ===
@@ -32,12 +32,12 @@ sampling_cfg = dict(
 # Experiment sets
 EXPERIMENTS = {
     # Sample size 9
-    "Size9Samples1Train100Test20": dict(sample_size=9, num_samples=1,
-                                        num_rand_train_trees=100, num_rand_test_trees=20),
+    # "Size9Samples1Train100Test20": dict(sample_size=9, num_samples=1,
+    #                                    num_rand_train_trees=100, num_rand_test_trees=20),
     "Size9Samples100Train100Test20": dict(sample_size=9, num_samples=100,
                                           num_rand_train_trees=100, num_rand_test_trees=20),
-    "Size9Samples100Test20Validation": dict(sample_size=9, num_samples=100,
-                                            num_rand_train_trees=0, num_rand_test_trees=20),
+    # "Size9Samples100Test20Validation": dict(sample_size=9, num_samples=100,
+    #                                        num_rand_train_trees=0, num_rand_test_trees=20),
 }
 
 # Set number of cores for parallel agent training and evaluation
@@ -47,19 +47,19 @@ n_agents = 5
 
 # Training parameters (shared)
 train_common = dict(
-    episodes=20_000,
+    episodes=30_000,
     horizon=20,
     add_new_features=False,
     checkpoint_freq=1000,
     update_freq=1,
     batch_size=128,
     hidden_dim=256,
-    dropout_p=0.2,
+    dropout_p=0.0,
     replay_size=10_000,
     min_replay_start=1000,
     learning_rate=1e-5,
-    weight_decay=1e-2,
-    gamma=0.9,
+    weight_decay=0.0,
+    gamma=0.0,
     tau=0.005
 )
 
@@ -79,8 +79,8 @@ soft_cfg = dict(
     replay_beta_frames=400_000,
     temp_alpha_init=4.0,
     entropy_frames=400_000,
-    entropy_start=0.5,
-    entropy_end=0.5
+    entropy_start=0.3,
+    entropy_end=0.3
 )
 
 # Hash full parameters for file names
@@ -179,10 +179,6 @@ def run_evaluation(algorithm, set_type="test"):
                 checkpoints_dir=checkpoints_dir,
                 evaluate_dir=evaluate_dir
             )
-            plot_final_checkpoint_tables(evaluate_dir=evaluate_dir, dataset_name=name,
-                                         algorithm_name=algorithm)
-            accuracy_over_checkpoints(evaluate_dir=evaluate_dir, train_dataset=name, eval_dataset=eval_name,
-                                      algorithm_name=algorithm)
 
 
 # === MAIN EXECUTION ===
