@@ -121,7 +121,6 @@ def train_softq_agent_process(agent_id, samples_dir, raxmlng_path, episodes, hor
     for ep in range(episodes):
         tree_hash, feats = env.reset()
         raxml_return = env.current_sample["rand_test_trees_ml_best"] - env.current_ll
-        current_return = 0.0
         highest_return = 0.0
         trees_visited = {tree_hash}
         q_loss = np.nan
@@ -153,8 +152,7 @@ def train_softq_agent_process(agent_id, samples_dir, raxmlng_path, episodes, hor
             if step_counter % update_freq == 0 and len(agent.replay) >= min_replay_start:
                 q_loss, policy_entropy = agent.update(batch_size, beta, target_entropy)
 
-            current_return += reward
-            highest_return = max(highest_return, current_return)
+            highest_return = max(highest_return, env.return_from_start)
             feats = next_feats
 
         # Log less frequently

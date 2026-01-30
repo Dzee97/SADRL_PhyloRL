@@ -36,8 +36,8 @@ EXPERIMENTS = {
     #                                    num_rand_train_trees=100, num_rand_test_trees=20),
     "Size9Samples100Train100Test20": dict(sample_size=9, num_samples=100,
                                           num_rand_train_trees=100, num_rand_test_trees=20),
-    # "Size9Samples100Test20Validation": dict(sample_size=9, num_samples=100,
-    #                                        num_rand_train_trees=0, num_rand_test_trees=20),
+    "Size9Samples100Test20Validation": dict(sample_size=9, num_samples=100,
+                                            num_rand_train_trees=0, num_rand_test_trees=20),
 }
 
 # Set number of cores for parallel agent training and evaluation
@@ -59,15 +59,15 @@ train_common = dict(
     min_replay_start=1000,
     learning_rate=1e-5,
     weight_decay=0.0,
-    gamma=0.0,
+    gamma=0.9,
     tau=0.005
 )
 
 # DQN Boltzmann-based agent parameters
 dqn_cfg = dict(
     temp=1.0,
-    double_q=False,
-    replay_alpha=0.0,
+    double_q=True,
+    replay_alpha=0.6,
     replay_beta_start=0.4,
     replay_beta_frames=400_000
 )

@@ -20,17 +20,17 @@
 * SQL_2c7b0c3c: gamma 0.5
 * SQL_8d98709c: gamma 0.0
 
-### Experiment 3: Change gamma under target ent 0.5, replay size 10000
+### Experiment 4: Change gamma under target ent 0.5, replay size 10000
 * SQL_d6506194: gamma 0.99 (still evaluating)
 * SQL_0dda432d: gamma 0.9
 * SQL_a1d9b81a: gamma 0.5
 * SQL_3911473f: gamma 0.0
 
-### Experinment 4: Change gamma under target ent 0.5, replay size 10000, no dropout
+### Experinment 5: Change gamma under target ent 0.5, replay size 10000, no dropout
 * SQL_e427aee4: gamma 0.9
 * SQL_c2d3e181: gamma 0.5
 * SQL_7d4ca9bd: gamma 0.0
 
-### Experinment 4: Change gamma under target ent 0.3, replay size 10000, no dropout
+### Experinment 6: Change gamma under target ent 0.3, replay size 10000, no dropout
 * SQL_aaff700e: gamma 0.5
 * SQL_29920d0b: gamma 0.0 (still running)

@@ -3,6 +3,8 @@ import random
 import tempfile
 from pathlib import Path
 from ete3 import Tree
+from collections import deque
+import numpy as np
 
 from spr_feature_extractor import TreePreprocessor, perform_spr_move
 from sample_datasets import run_cmd
@@ -77,7 +79,9 @@ class PhyloEnv:
     def reset(self, sample_num: int = None, start_tree_set: str = "train", start_tree_num: int = None):
         """Pick a random sample and random starting tree, prepare RAxML working dir in RAM."""
         self.step_count = 0
+        self.return_from_start = 0.0
         self.cache_hits = 0
+        self.tanh_reward_history = deque(np.zeros(3), maxlen=3)
 
         sample_num = random.randrange(0, len(self.samples)) if sample_num is None else sample_num
         self.current_sample = self.samples[sample_num]
@@ -102,6 +106,14 @@ class PhyloEnv:
             self.tree_cache[tree_hash] = (start_tree_optim, self.current_ll)
 
         self.current_tree, self.current_moves, self.current_feats = self._extract_features(start_tree_optim)
+
+        if self.add_new_features:
+            dist_from_pars = self.current_sample["pars_ll"] - self.current_ll
+            tanh_reward_history_mean = 0.0
+
+            new_feats = np.array([self.return_from_start, dist_from_pars, self.step_count, tanh_reward_history_mean])
+            self.current_feats = np.hstack((self.current_feats, np.tile(new_feats, (self.current_feats.shape[0], 1))))
+
         return tree_hash, self.current_feats
 
     def step(self, move_idx):
@@ -120,11 +132,20 @@ class PhyloEnv:
             self.tree_cache[tree_hash] = (neighbor_tree_optim, neighbor_ll)
 
         reward = (neighbor_ll - self.current_ll)  # / abs(self.current_sample["norm_ll"])
+        self.return_from_start += reward
+        self.tanh_reward_history.append(np.tanh(reward / 10))
 
         self.current_tree, self.current_moves, self.current_feats = self._extract_features(neighbor_tree_optim)
         self.current_ll = neighbor_ll
         self.step_count += 1
         done = self.step_count >= self.horizon
+
+        if self.add_new_features:
+            dist_from_pars = self.current_sample["pars_ll"] - self.current_ll
+            tanh_reward_history_mean = np.mean(self.tanh_reward_history)
+
+            new_feats = np.array([self.return_from_start, dist_from_pars, self.step_count, tanh_reward_history_mean])
+            self.current_feats = np.hstack((self.current_feats, np.tile(new_feats, (self.current_feats.shape[0], 1))))
 
         return tree_hash, self.current_feats, reward, done
 

@@ -7,6 +7,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
 from pathlib import Path
+from scipy.signal import savgol_filter
 from environment import PhyloEnv
 from agents import QNetwork
 
@@ -46,7 +47,7 @@ def compare_over_checkpoints(
         "steps_to_raxml",
     }
 
-    EPS = 0.1
+    EPS = 0.01
 
     fig, ax = plt.subplots(figsize=(9, 5))
     cmap = plt.get_cmap("tab10")
@@ -73,8 +74,8 @@ def compare_over_checkpoints(
             test_mls_all_exp = test_mls_all[np.newaxis, :, np.newaxis, :]
 
             match = res_max >= test_mls_all_exp - EPS
-            per_agent = np.mean(np.sum(match, axis=3), axis=1)
-            mean_line = np.mean(per_agent, axis=0)
+            per_agent = np.median(np.sum(match, axis=3), axis=1)
+            mean_line = savgol_filter(np.mean(per_agent, axis=0), window_length=5, polyorder=1)
             ylabel = f"# starting trees ≥ RAxML (out of {n_start_trees})"
 
         elif metric == "mean_ll_diff":
@@ -122,6 +123,7 @@ def compare_over_checkpoints(
 
     ax.set_xlabel("Episode")
     ax.set_ylabel(ylabel)
+    ax.set_ylim(top=20.5)
     ax.set_xticks(episode_nums)
     ax.set_xticklabels(episode_nums, rotation=45)
     ax.grid(alpha=0.3)
