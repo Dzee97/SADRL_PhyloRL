@@ -73,4 +73,4 @@ After evaluation, results and visulatizations are saved in their respective outp
 
 ### Contribution
 
-Although we take inspiration from the work of Azouri et al. (2024), all provided code is our own independent self-implementation and scientific exploration.
+Although we take inspiration from the work of Azouri et al. (2024), all provided code is our own independent self-implementation and scientific contribution.
