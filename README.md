@@ -1,4 +1,4 @@
-# SADRL_PhyloRL Experiment Guide
+# PhyloRL Experiment Guide
 
 This guide explains how to switch between feature sets (Hand-Crafted vs. GNN), and run training/evaluation.
 
