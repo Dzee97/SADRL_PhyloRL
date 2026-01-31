@@ -6,6 +6,8 @@ This guide explains how to switch between feature sets (Hand-Crafted vs. GNN), a
 
 The project uses different git branches to separate the feature extraction methods.
 
+There may be slight differences in dependencies for each branch.
+
 ### Hand-Crafted Features (Baseline)
 Use the `Daniel` branch for agents that use hand-crafted topological features (DQN, SoftQ).
 ```bash
