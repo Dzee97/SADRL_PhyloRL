@@ -27,7 +27,7 @@ threads = "8"
 # --------------------------
 
 print(f"\n#1 Reading alignment file: {alignment_path}")
-taxa_names = prepare_alignment(alignment_path)
+taxa_names, records = prepare_alignment(alignment_path)
 num_taxa = len(taxa_names)
 print(f"• Alignment file contains {num_taxa} taxa")
 
@@ -112,7 +112,7 @@ print(f"• Number of unique unlabeled shapes: {num_shapes}")
 
 print("\n#4 Evaluating likelihood of all newick representations from topologies")
 likelihoods, reusable = evaluate_or_reuse_likelihoods(
-    eval_dir, raxmlng_path, alignment_path, model_path, topologies_newicks, threads)
+    eval_dir, raxmlng_path, records, model_path, topologies_newicks, threads)
 if reusable:
     print("• Found existing likelihood calculations to reuse")
 

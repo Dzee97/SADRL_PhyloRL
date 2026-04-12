@@ -1,4 +1,5 @@
 {
-  "alignment_sha256": "96d7eb64f2dc3d680df1d7bcc4610ff8229bc5c7930db85aaf7d93cc36124cf1",
-  "model_sha256": "fa9b2263b602cee5b3e48d3fbd5e3a14ff87a20c71c4095ed10580429ba8f025"
+  "alignment_sha256": "189b3db756a9aa25a62dafdab2577afb9a153dca875d1efcfa3c53479dfeee2d",
+  "model_sha256": "fa9b2263b602cee5b3e48d3fbd5e3a14ff87a20c71c4095ed10580429ba8f025",
+  "newick_sha256": "8f35c3f0125ad67c6c9d3889f8d0e4bfa6700610747ca2ed4bbf8329df83ec52"
 }
