@@ -1,0 +1,150 @@
+
+RAxML-NG v. 1.2.2-master released on 30.04.2024 by The Exelixis Lab.
+Developed by: Alexey M. Kozlov and Alexandros Stamatakis.
+Contributors: Diego Darriba, Tomas Flouri, Benoit Morel, Sarah Lutteropp, Ben Bettisworth, Julia Haag, Anastasis Togkousidis.
+Latest version: https://github.com/amkozlov/raxml-ng
+Questions/problems/suggestions? Please visit: https://groups.google.com/forum/#!forum/raxml
+
+System: Intel(R) Core(TM) i7-14700, 20 cores, 31 GB RAM (allocated: 14 physical cores)
+
+RAxML-NG was called at 18-Jan-2026 00:48:43 as follows:
+
+dependencies/raxmlng/raxml-ng --evaluate --msa output/Size9Samples100Train100Test20/sample_004/sample_aln.fasta --model GTR+I+G --prefix output/Size9Samples100Train100Test20/sample_004/raxml_eval_pars --tree output/Size9Samples100Train100Test20/sample_004/raxml_pars.raxml.startTree
+
+Analysis options:
+  run mode: Evaluate tree likelihood
+  start tree(s): user
+  random seed: 1768693723
+  tip-inner: OFF
+  pattern compression: ON
+  per-rate scalers: OFF
+  site repeats: ON
+  logLH epsilon: general: 0.100000, brlen-triplet: 1000.000000
+  branch lengths: proportional (ML estimate, algorithm: NR-FAST)
+  SIMD kernels: AVX2
+  parallelization: coarse-grained (auto), PTHREADS (auto)
+
+[00:00:00] Reading alignment from file: output/Size9Samples100Train100Test20/sample_004/sample_aln.fasta
+[00:00:00] Loaded alignment with 9 taxa and 701 sites
+
+WARNING: Fully undetermined columns found: 1
+
+NOTE: Reduced alignment (with duplicates and gap-only sites/taxa removed) 
+NOTE: was saved to: /vol/home/s2063131/Seminar-Advanced-Deep-RL/SADRL_PhyloRL/output/Size9Samples100Train100Test20/sample_004/raxml_eval_pars.raxml.reduced.phy
+
+Alignment comprises 1 partitions and 394 patterns
+
+Partition 0: noname
+Model: GTR+FO+I+G4m
+Alignment sites / patterns: 700 / 394
+Gaps: 23.44 %
+Invariant sites: 50.43 %
+
+
+NOTE: Binary MSA file created: output/Size9Samples100Train100Test20/sample_004/raxml_eval_pars.raxml.rba
+
+Parallelization scheme autoconfig: 1 worker(s) x 5 thread(s)
+
+[00:00:00] Loading user starting tree(s) from: output/Size9Samples100Train100Test20/sample_004/raxml_pars.raxml.startTree
+Parallel reduction/worker buffer size: 1 KB  / 0 KB
+
+[00:00:00] Data distribution: max. partitions/sites/weight per thread: 1 / 79 / 1264
+[00:00:00] Data distribution: max. searches per worker: 10
+
+Evaluating 10 trees
+
+[00:00:00] Tree #1, initial LogLikelihood: -3533.587376
+
+[00:00:00 -3533.587376] Initial branch length optimization
+[00:00:00 -3465.618363] Model parameter optimization (eps = 0.100000)
+
+[00:00:00] Tree #1, final logLikelihood: -3361.208847
+
+[00:00:00] Tree #2, initial LogLikelihood: -3537.124407
+
+[00:00:00 -3537.124407] Initial branch length optimization
+[00:00:00 -3464.721398] Model parameter optimization (eps = 0.100000)
+
+[00:00:00] Tree #2, final logLikelihood: -3361.798401
+
+[00:00:00] Tree #3, initial LogLikelihood: -3537.124407
+
+[00:00:00 -3537.124407] Initial branch length optimization
+[00:00:00 -3464.987549] Model parameter optimization (eps = 0.100000)
+
+[00:00:00] Tree #3, final logLikelihood: -3361.799702
+
+[00:00:00] Tree #4, initial LogLikelihood: -3531.349539
+
+[00:00:00 -3531.349539] Initial branch length optimization
+[00:00:00 -3464.378641] Model parameter optimization (eps = 0.100000)
+
+[00:00:00] Tree #4, final logLikelihood: -3360.477440
+
+[00:00:00] Tree #5, initial LogLikelihood: -3537.124407
+
+[00:00:00 -3537.124407] Initial branch length optimization
+[00:00:00 -3464.935986] Model parameter optimization (eps = 0.100000)
+
+[00:00:00] Tree #5, final logLikelihood: -3361.798682
+
+[00:00:00] Tree #6, initial LogLikelihood: -3536.095639
+
+[00:00:00 -3536.095639] Initial branch length optimization
+[00:00:00 -3464.287810] Model parameter optimization (eps = 0.100000)
+
+[00:00:00] Tree #6, final logLikelihood: -3361.877889
+
+[00:00:00] Tree #7, initial LogLikelihood: -3531.349539
+
+[00:00:00 -3531.349539] Initial branch length optimization
+[00:00:00 -3464.239437] Model parameter optimization (eps = 0.100000)
+
+[00:00:00] Tree #7, final logLikelihood: -3360.475386
+
+[00:00:00] Tree #8, initial LogLikelihood: -3537.124407
+
+[00:00:00 -3537.124407] Initial branch length optimization
+[00:00:00 -3464.615818] Model parameter optimization (eps = 0.100000)
+
+[00:00:00] Tree #8, final logLikelihood: -3361.797452
+
+[00:00:00] Tree #9, initial LogLikelihood: -3549.338191
+
+[00:00:00 -3549.338191] Initial branch length optimization
+[00:00:00 -3461.801026] Model parameter optimization (eps = 0.100000)
+
+[00:00:00] Tree #9, final logLikelihood: -3361.759679
+
+[00:00:00] Tree #10, initial LogLikelihood: -3537.151522
+
+[00:00:00 -3537.151522] Initial branch length optimization
+[00:00:00 -3467.402178] Model parameter optimization (eps = 0.100000)
+
+[00:00:00] Tree #10, final logLikelihood: -3362.659053
+
+
+Optimized model parameters:
+
+   Partition 0: noname
+   Rate heterogeneity: GAMMA (4 cats, mean),  alpha: 0.980055 (ML),  weights&rates: (0.250000,0.132957) (0.250000,0.470674) (0.250000,0.996615) (0.250000,2.399754) 
+   P-inv (ML): 0.236945
+   Base frequencies (ML): 0.223370 0.258804 0.227220 0.290605 
+   Substitution rates (ML): 1.744095 4.412317 1.443840 0.988852 5.710961 1.000000 
+
+
+Final LogLikelihood: -3360.475386
+
+AIC score: 6770.950771 / AICc score: 6772.879554 / BIC score: 6884.727779
+Free parameters (model + branch lengths): 25
+
+Best ML tree saved to: /vol/home/s2063131/Seminar-Advanced-Deep-RL/SADRL_PhyloRL/output/Size9Samples100Train100Test20/sample_004/raxml_eval_pars.raxml.bestTree
+All ML trees saved to: /vol/home/s2063131/Seminar-Advanced-Deep-RL/SADRL_PhyloRL/output/Size9Samples100Train100Test20/sample_004/raxml_eval_pars.raxml.mlTrees
+Optimized model saved to: /vol/home/s2063131/Seminar-Advanced-Deep-RL/SADRL_PhyloRL/output/Size9Samples100Train100Test20/sample_004/raxml_eval_pars.raxml.bestModel
+
+Execution log saved to: /vol/home/s2063131/Seminar-Advanced-Deep-RL/SADRL_PhyloRL/output/Size9Samples100Train100Test20/sample_004/raxml_eval_pars.raxml.log
+
+Analysis started: 18-Jan-2026 00:48:43 / finished: 18-Jan-2026 00:48:44
+
+Elapsed time: 0.308 seconds
+

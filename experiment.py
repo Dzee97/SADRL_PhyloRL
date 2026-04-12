@@ -17,7 +17,7 @@ DATASETS_DIR = Path("datasets")
 # Dependencies
 raxmlng_path = DEPS_DIR / "raxmlng" / "raxml-ng"
 mafft_path = DEPS_DIR / "mafft-linux64" / "mafft.bat"
-input_fasta = DATASETS_DIR / "051_856_p__Basidiomycota_c__Agaricomycetes_o__Russulales.fasta"
+input_fasta = DATASETS_DIR / "mycodiversity_18_1_2026_1049_Russula.fa"
 
 # Sampling parameters
 sampling_cfg = dict(
@@ -36,8 +36,8 @@ EXPERIMENTS = {
     #                                    num_rand_train_trees=100, num_rand_test_trees=20),
     "Size9Samples100Train100Test20": dict(sample_size=9, num_samples=100,
                                           num_rand_train_trees=100, num_rand_test_trees=20),
-    "Size9Samples100Test20Validation": dict(sample_size=9, num_samples=100,
-                                            num_rand_train_trees=0, num_rand_test_trees=20),
+    # "Size9Samples100Test20Validation": dict(sample_size=9, num_samples=100,
+    #                                         num_rand_train_trees=0, num_rand_test_trees=20),
 }
 
 # Set number of cores for parallel agent training and evaluation
@@ -47,18 +47,18 @@ n_agents = 5
 
 # Training parameters (shared)
 train_common = dict(
-    episodes=30_000,
+    episodes=100_000,
     horizon=20,
-    add_new_features=False,
-    checkpoint_freq=1000,
+    add_new_features=True,
+    checkpoint_freq=5000,
     update_freq=1,
     batch_size=128,
     hidden_dim=256,
-    dropout_p=0.0,
+    dropout_p=0.2,
     replay_size=10_000,
     min_replay_start=1000,
     learning_rate=1e-5,
-    weight_decay=0.0,
+    weight_decay=1e-2,
     gamma=0.9,
     tau=0.005
 )

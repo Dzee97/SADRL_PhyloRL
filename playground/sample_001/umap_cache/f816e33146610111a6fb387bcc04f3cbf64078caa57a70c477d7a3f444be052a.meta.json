@@ -1,0 +1,10 @@
+{
+  "init": "spectral",
+  "low_memory": true,
+  "matrix_sha256": "440a3ff1b7faf161611b4b21d758f52e41f3a0ec717725f90aaf997a5a0ec196",
+  "metric": "precomputed",
+  "min_dist": 0.2,
+  "n_components": 2,
+  "n_neighbors": 132,
+  "random_state": 42
+}
