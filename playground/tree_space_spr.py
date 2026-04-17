@@ -295,7 +295,7 @@ def split_displays_quartet_resolution(split_mask: int, Pmask: int, Qmask: int) -
     )
 
 
-def topology_quartet_matrix(topologies: np.ndarray, num_taxa: int) -> np.ndarray:
+def calculate_topology_quartet_matrix(topologies: np.ndarray, num_taxa: int) -> np.ndarray:
     _, resolutions, quartet_col_ranges = enumerate_quartet_resolutions(num_taxa)
 
     num_topologies = len(topologies)
@@ -321,4 +321,3 @@ def topology_quartet_matrix(topologies: np.ndarray, num_taxa: int) -> np.ndarray
                 )
 
     return M
-

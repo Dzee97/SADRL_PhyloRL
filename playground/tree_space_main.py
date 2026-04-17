@@ -3,14 +3,18 @@ from scipy.special import factorial2
 from scipy.sparse import csr_matrix
 from tqdm import tqdm
 from umap import UMAP
+from sklearn.cluster import KMeans, HDBSCAN
+from sklearn.metrics import pairwise_distances
+from sklearn.decomposition import PCA
 import warnings
 from tree_space_spr import generate_all_internal_splits, calculate_split_compatibility, generate_all_topologies, \
     full_clade_set, partition_clade_set, rooted_remainder_parent_map, spr_move_from_clades, \
     canonical_internal_mask_from_clades, canonical_tree_from_clade_set, newick_from_labeled_tree, \
-    topology_quartet_matrix
+    calculate_topology_quartet_matrix
 from tree_space_eval import prepare_alignment, evaluate_or_reuse_likelihoods
-from tree_space_umap import evaluate_or_reuse_umap
-from tree_space_plot import plot_umap_heatmap
+from tree_space_umap import evaluate_or_reuse_umap, embedding_to_rgb
+from tree_space_plot import plot_umap_heatmap, plot_umap_rgb, plot_umap_categories
+from tree_space_helper import print_memory_stats
 from typing import Any
 from multiprocessing import Pool
 import math
@@ -36,10 +40,13 @@ print(f"• Alignment file contains {num_taxa} taxa")
 # -------------------------------------
 
 print(f"\n#2 Generating topologies for {num_taxa} taxa")
+
 print("• Generating all possible internal splits")
 all_internal, split_sizes = generate_all_internal_splits(num_taxa)
+
 print("• Calculating pairwise compatibility between all internal split")
 compat_matrix = calculate_split_compatibility(all_internal, num_taxa)
+
 print("• Generating all possible tree topologies")
 topologies, topology_splits = generate_all_topologies(all_internal, compat_matrix, num_taxa)
 topology_split_sizes = split_sizes * topology_splits
@@ -55,25 +62,17 @@ assert num_topologies == factorial2(2 * num_taxa - 5, exact=True)
 print("\n#3 Calculating balance measures from topology bitmasks")
 
 topology_cherry_count = np.sum(topology_split_sizes == 2, axis=1)
-
 masked_sizes = np.ma.masked_equal(topology_split_sizes, 0)
 topology_split_mean = masked_sizes.mean(axis=1)
-topology_split_var = masked_sizes.var(axis=1)
 
-# topology_umap1d: np.ndarray | Any = UMAP(n_neighbors=50, n_components=3).fit_transform(topology_split_sizes)
-# col_min = topology_umap1d.min(axis=0)
-# col_max = topology_umap1d.max(axis=0)
-# topology_umap1d_scaled = (topology_umap1d - col_min) / (col_max - col_min)
+# -------------------------------------------------------
+# - Calculating quartet matrix from topology bitmasks -
+# -------------------------------------------------------
 
-quartet_matrix = topology_quartet_matrix(topologies, num_taxa)
+print("\n#4 Calculating quartet matrix from topology bitmasks")
 
-assert np.all(quartet_matrix.sum(axis=1) == math.comb(num_taxa, 4))
-
-topology_quartet_umap: np.ndarray | Any = UMAP(
-    n_neighbors=50, n_components=3, metric="hamming").fit_transform(quartet_matrix)
-col_min = topology_quartet_umap.min(axis=0)
-col_max = topology_quartet_umap.max(axis=0)
-topology_quartet_rgb = (topology_quartet_umap - col_min) / (col_max - col_min)
+topology_quartet_matrix = calculate_topology_quartet_matrix(topologies, num_taxa)
+assert np.all(topology_quartet_matrix.sum(axis=1) == math.comb(num_taxa, 4))
 
 # -----------------------------------------
 # - Deriving trees from topology bitmasks -
@@ -116,17 +115,17 @@ likelihoods, reusable = evaluate_or_reuse_likelihoods(
 if reusable:
     print("• Found existing likelihood calculations to reuse")
 
-# ------------------------------------------------------
-# - Calculating RF distances to ML topology -
-# ------------------------------------------------------
-print("\n#5 Calculating Robinson–Foulds distances for each topology to ML topology")
+# -------------------------------------------------------
+# - Calculating RF and Quartet distances to ML topology -
+# -------------------------------------------------------
+
+print("\n#5 Calculating Robinson–Foulds and Quartet distances for each topology to ML topology")
 ml_idx = np.argmax(likelihoods)
 ml_topology_splits = topology_splits[ml_idx]
-ml_topology_split_sizes = topology_split_sizes[ml_idx]
+ml_topology_quartets = topology_quartet_matrix[ml_idx]
 
 topology_rf_to_ml = np.sum(ml_topology_splits != topology_splits, axis=1)
-topology_ed_to_ml = np.sqrt(np.sum((ml_topology_split_sizes - topology_split_sizes)**2, axis=1))
-
+topology_qd_to_ml = np.sum(ml_topology_quartets != topology_quartet_matrix, axis=1) // 2
 
 # -----------------------------------------------
 # - Calculating SPR neighborhood for topologies -
@@ -137,15 +136,11 @@ topology_index = {tuple(topo): i for i, topo in enumerate(topologies)}
 
 def calculate_spr_neighborhood(i: int):
     topo = topologies[i]
-    ll_i = likelihoods[i]
 
     topo_clades = full_clade_set(topo, num_taxa)
 
     total_moves = 0
-    neighbor_scores: dict[int, float] = {}
-
-    adj_entries = {}
-    delta_ll_entries = {}
+    neighbor_set = set()
 
     for prune in topo_clades:
         prune_clades, remainder, remainder_clades = partition_clade_set(topo_clades, prune, num_taxa)
@@ -158,60 +153,35 @@ def calculate_spr_neighborhood(i: int):
 
             j = topology_index[tuple(new_top)]
 
-            adj_entries[(i, j)] = 1.0
-            adj_entries[(j, i)] = 1.0
+            neighbor_set.add((i, j))
 
-            delta_ll = ll_i - likelihoods[j]
-            neighbor_scores[j] = delta_ll
-
-            val = 1.0 + np.log1p(abs(delta_ll))
-            delta_ll_entries[(i, j)] = val
-            delta_ll_entries[(j, i)] = val
-
-    total_neighbors = len(neighbor_scores)
+    total_neighbors = len(neighbor_set)
 
     assert total_moves == 4 * (num_taxa - 3) * (num_taxa - 2)
     assert total_neighbors == 2 * (num_taxa - 3) * (2 * num_taxa - 7)
 
-    return adj_entries, delta_ll_entries, total_moves, total_neighbors
+    return neighbor_set
+
+
+def build_sparse_spr_adj_matrix(topology_neighbor_sets):
+    num_topologies = len(topology_neighbor_sets)
+    rows, cols = [], []
+
+    for neighbor_set in topology_neighbor_sets:
+        for i, j in neighbor_set:
+            rows.append(i)
+            cols.append(j)
+
+    data = np.ones(len(rows), dtype=np.float32)
+    return csr_matrix((data, (rows, cols)), shape=(num_topologies, num_topologies))
 
 
 print("\n#5 Calculating SPR neighborhood for each topology")
 with Pool(int(threads)) as p:
-    results = list(tqdm(p.imap(calculate_spr_neighborhood, range(num_topologies)), total=num_topologies))
+    topology_neighbor_sets = list(tqdm(p.imap(calculate_spr_neighborhood, range(num_topologies)), total=num_topologies))
 
-total_adj_entries, total_delta_ll_entries = {}, {}
-
-for adj_entries, delta_ll_entries, total_moves, total_neighbors in results:
-    for row_col, val in adj_entries.items():
-        total_adj_entries[row_col] = val
-    for row_col, val in delta_ll_entries.items():
-        total_delta_ll_entries[row_col] = val
-
-adj_rows, adj_cols, adj_vals = [], [], []
-delta_rows, delta_cols, delta_vals = [], [], []
-
-for (i, j), val in total_adj_entries.items():
-    adj_rows.append(i)
-    adj_cols.append(j)
-    adj_vals.append(val)
-
-for (i, j), val in total_delta_ll_entries.items():
-    delta_rows.append(i)
-    delta_cols.append(j)
-    delta_vals.append(val)
-
-topology_adj_matrix = csr_matrix(
-    (adj_vals, (adj_rows, adj_cols)),
-    shape=(num_topologies, num_topologies),
-    dtype=np.float32
-)
-
-topology_delta_ll_matrix = csr_matrix(
-    (delta_vals, (delta_rows, delta_cols)),
-    shape=(num_topologies, num_topologies),
-    dtype=np.float32
-)
+n_neighbors = len(topology_neighbor_sets[0])
+topology_adj_matrix = build_sparse_spr_adj_matrix(topology_neighbor_sets)
 
 # --------------------------------------------
 # - Creating SPR graph embeddings using UMAP -
@@ -219,34 +189,22 @@ topology_delta_ll_matrix = csr_matrix(
 
 print("\n#6 Creating 2D SPR graph embeddings using UMAP")
 random_state = 42
-min_dist = 0.1
+min_dist = 0.0
 
 with warnings.catch_warnings():
     warnings.simplefilter("ignore")
 
-    print(f"• n_neighbors={total_neighbors} - Creating/reusing embedding for adjacency matrix")
+    print(f"• n_neighbors={n_neighbors} - Creating/reusing embedding for adjacency matrix")
     embedding_adj, reusable = evaluate_or_reuse_umap(
         cache_dir=umap_cache_dir,
         matrix=topology_adj_matrix,
-        n_neighbors=total_neighbors,
+        n_neighbors=n_neighbors,
         metric="precomputed",
         random_state=random_state,
         min_dist=min_dist
     )
     if reusable:
         print("  ↳ Reused cached adjacency embedding")
-
-    print(f"• n_neighbors={total_neighbors} - Creating/reusing embedding for delta ll matrix")
-    embedding_delta_ll, reusable = evaluate_or_reuse_umap(
-        cache_dir=umap_cache_dir,
-        matrix=topology_delta_ll_matrix,
-        n_neighbors=total_neighbors,
-        metric="precomputed",
-        random_state=random_state,
-        min_dist=min_dist
-    )
-    if reusable:
-        print("  ↳ Reused cached delta-ll embedding")
 
 # --------------------
 # - Plotting results -
@@ -258,19 +216,15 @@ point_size = 4.0
 alpha = 0.7
 colorbar_label = "Log-likelihood",
 
-save_path = f"umap_adj_nn{total_neighbors}.png"
+save_path = f"umap_adj_nn{n_neighbors}.png"
 title = "Likelihood landscape (Uniform distance)"
 plot_umap_heatmap(embedding_adj, likelihoods, save_path, title)
-
-save_path = f"umap_delta_ll_nn{total_neighbors}.png"
-title = "Likelihood landscape (Likelihood weighted distance)"
-plot_umap_heatmap(embedding_delta_ll, likelihoods, save_path, title)
 
 
 plot_umap_heatmap(
     embedding_adj,
     topology_cherry_count,
-    save_path=f"umap_adj_cherries_nn{total_neighbors}.png",
+    save_path=f"umap_adj_cherries_nn{n_neighbors}.png",
     title="SPR graph UMAP colored by cherry count",
     colorbar_label="Cherry count"
 )
@@ -278,40 +232,98 @@ plot_umap_heatmap(
 plot_umap_heatmap(
     embedding_adj,
     topology_split_mean,
-    save_path=f"umap_adj_split_mean_nn{total_neighbors}.png",
+    save_path=f"umap_adj_split_mean_nn{n_neighbors}.png",
     title="SPR graph UMAP colored by mean split size",
     colorbar_label="Mean split size"
 )
 
 plot_umap_heatmap(
     embedding_adj,
-    topology_split_var,
-    save_path=f"umap_adj_split_var_nn{total_neighbors}.png",
-    title="SPR graph UMAP colored by split size variance",
-    colorbar_label="Split size variance"
-)
-
-plot_umap_heatmap(
-    embedding_adj,
     -topology_rf_to_ml,
-    save_path=f"umap_adj_rf_to_ml_nn{total_neighbors}.png",
+    save_path=f"umap_adj_rf_to_ml_nn{n_neighbors}.png",
     title="SPR graph UMAP colored by RF distance to ML topology",
     colorbar_label="RF distance to ML tree",
 )
 
 plot_umap_heatmap(
     embedding_adj,
-    -topology_ed_to_ml,
-    save_path=f"umap_adj_ed_to_ml_nn{total_neighbors}.png",
-    title="SPR graph UMAP colored by split size Euclidean distance to ML topology",
-    colorbar_label="Euclidean distance to ML tree",
+    -topology_qd_to_ml,
+    save_path=f"umap_adj_qd_to_ml_nn{n_neighbors}.png",
+    title="SPR graph UMAP colored by split size Quartet distance to ML topology",
+    colorbar_label="Quartet distance to ML tree",
 )
 
-plot_umap_heatmap(
+
+print("\n#8 HDBSCAN clustering on SPR UMAP embedding")
+hdbscan = HDBSCAN(min_cluster_size=5000, min_samples=5)
+topology_cluster_labels = hdbscan.fit_predict(embedding_adj)
+plot_umap_categories(
     embedding_adj,
-    topology_quartet_rgb,
-    save_path=f"umap_adj_hamming1d_nn{total_neighbors}.png",
-    title="SPR graph UMAP colored global RF distance embedding",
-    colorbar_label="RF distance embedding",
-    cmap=None,
+    topology_cluster_labels,
+    save_path="umap_adj_hdbscan.png",
+    title="SPR graph UMAP colored by HDBSCAN clusters",
+    cmap="tab20"
 )
+
+top_k = 50
+n_clusters = topology_cluster_labels.max()
+
+
+def get_top_k_medoid_indices(data, labels, k):
+    cluster_top_indices = []
+    for i in range(n_clusters):
+        indices_in_cluster = np.where(labels == i)[0]
+        if len(indices_in_cluster) == 0:
+            continue
+
+        cluster_points = data[indices_in_cluster]
+        dist_matrix = pairwise_distances(cluster_points, metric='euclidean')
+
+        # Sum distances for each point and find indices of the smallest k
+        dist_sums = dist_matrix.sum(axis=1)
+        # Use argsort to get indices of points from most central to least central
+        # clip k in case cluster is smaller than k
+        actual_k = min(k, len(indices_in_cluster))
+        local_top_k_idxs = np.argsort(dist_sums)[:actual_k]
+
+        global_top_k_idxs = indices_in_cluster[local_top_k_idxs]
+        cluster_top_indices.append(global_top_k_idxs)
+
+    return cluster_top_indices  # Returns a list of arrays
+
+
+# 1. Get list of top k indices for every cluster
+all_clusters_top_k = get_top_k_medoid_indices(embedding_adj, topology_cluster_labels, k=top_k)
+
+# 2. Loop through each cluster and calculate the average QD
+all_avg_topology_qd = []
+for i, top_k_idxs in enumerate(all_clusters_top_k):
+    # Initialize an array to accumulate distances
+    # We use float64 to prevent precision issues during averaging
+    total_qd_sum = np.zeros(topology_quartet_matrix.shape[0], dtype=np.float64)
+
+    for med_idx in top_k_idxs:
+        med_topology_quartets = topology_quartet_matrix[med_idx]
+        # Calculate QD for this specific medoid
+        qd = np.sum(med_topology_quartets != topology_quartet_matrix, axis=1) // 2
+        total_qd_sum += qd
+
+    # Calculate the average distance across all k medoids
+    avg_topology_qd = total_qd_sum / len(top_k_idxs)
+    all_avg_topology_qd.append(avg_topology_qd)
+
+    plot_umap_heatmap(
+        embedding_adj,
+        -avg_topology_qd,  # Negative for heatmap styling if desired
+        save_path=f"umap_adj_avg_qd_cluster{i}_k{top_k}.png",
+        title=f"Avg QD to top {len(top_k_idxs)} medoids in Cluster {i}",
+        colorbar_label="Average Quartet Distance",
+    )
+
+topology_cluster_avg_qd = np.array(all_avg_topology_qd).T
+print(topology_cluster_avg_qd.shape)
+pca = UMAP(n_components=3)
+topology_cluster_qd_pca = pca.fit_transform(topology_cluster_avg_qd)
+topology_cluster_qd_rgb = embedding_to_rgb(topology_cluster_qd_pca)
+
+plot_umap_rgb(embedding_adj, topology_cluster_qd_rgb, "umap_adj_cluster_rgb", "Title")

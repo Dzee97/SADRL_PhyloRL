@@ -117,3 +117,21 @@ def evaluate_or_reuse_umap(
         json.dump(meta, f, indent=2, sort_keys=True)
 
     return embedding, False
+
+
+def embedding_to_rgb(embedding_3d: np.ndarray, clip_percentiles=(1, 99)) -> np.ndarray:
+    rgb = np.empty_like(embedding_3d, dtype=np.float32)
+
+    for k in range(3):
+        x = embedding_3d[:, k]
+        lo, hi = np.percentile(x, clip_percentiles)
+        x = np.clip(x, lo, hi)
+
+        if hi > lo:
+            x = (x - lo) / (hi - lo)
+        else:
+            x = np.zeros_like(x)
+
+        rgb[:, k] = x
+
+    return rgb

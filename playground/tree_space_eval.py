@@ -139,12 +139,11 @@ def evaluate_or_reuse_likelihoods(eval_dir: str, raxml_ng_path: str, records: li
         not force
         and likelihood_path.exists()
         and meta_path.exists()
+        and load_json(str(meta_path)) == expected_meta
     )
 
     if reusable:
-        old_meta = load_json(str(meta_path))
-        if old_meta == expected_meta:
-            return np.load(likelihood_path), True
+        return np.load(likelihood_path), reusable
 
     prefix = str(eval_dir_path / "raxml_eval")
 
@@ -184,4 +183,4 @@ def evaluate_or_reuse_likelihoods(eval_dir: str, raxml_ng_path: str, records: li
     np.save(likelihood_path, likelihoods)
     save_json(str(meta_path), expected_meta)
 
-    return likelihoods, False
+    return likelihoods, reusable
