@@ -86,26 +86,34 @@ def full_clade_set(internal_masks: np.ndarray, num_taxa: int) -> set[int]:
     return clades
 
 
-def generate_clade_adjacency_mapping(internal_masks: np.ndarray, num_taxa: int) -> dict[int, set[int]]:
+def generate_clade_adjacency_mapping(internal_masks: np.ndarray, num_taxa: int):
+    # 1. Get all unique clades (normalized to have fewer than half bits or similar)
+    # But for a rooted adjacency map, we actually want the directed hierarchy.
     all_clades = full_clade_set(internal_masks, num_taxa)
-    full_mask = (1 << num_taxa) - 1
-    adj_map = {}
 
-    def map_clade_neighbors(clade: int, option_clades: set[int]):
-        subs = {c for c in option_clades if c != clade and (c & clade == c)}
-        neighbors = {c for c in subs if not any((c != d and (c & d) == c) for d in subs)}
-        adj_map[clade] = neighbors
+    # 2. Sort clades by bit_count (Descending: Parents -> Children)
+    sorted_clades = sorted(list(all_clades), key=lambda x: x.bit_count(), reverse=True)
 
-        for c in neighbors:
-            if c not in adj_map:
-                map_clade_neighbors(c, subs)
+    adj_map = {c: set() for c in sorted_clades}
 
-        comp = full_mask ^ clade
-        if comp not in adj_map:
-            map_clade_neighbors(comp, all_clades - subs)
+    # 3. For each clade, find its maximal sub-clades (immediate children)
+    for i, parent in enumerate(sorted_clades):
+        covered_bits = 0
+        # Only look at clades smaller than parent that are subsets
+        for j in range(i + 1, len(sorted_clades)):
+            child = sorted_clades[j]
 
-    start_clade = int(internal_masks[0])
-    map_clade_neighbors(start_clade, all_clades)
+            # Is it a subset?
+            if (parent & child) == child:
+                # Is it 'new' information? (Not already covered by a larger child)
+                if (covered_bits & child) != child:
+                    adj_map[parent].add(child)
+                    covered_bits |= child
+
+                # Optimization: if we've covered the whole parent, stop looking
+                if covered_bits == parent:
+                    break
+
     return adj_map
 
 
@@ -121,22 +129,23 @@ def find_center_clades(adj_map: dict[int, set[int]], num_taxa: int):
             for n in adj_map[c_comp]:
                 n_comp = full_mask ^ n
                 adj_map[n_comp].remove(c)
-                if not adj_map[n_comp]:
+                if n not in leaves and not adj_map[n_comp]:
                     new_leaves.add(n_comp)
             adj_map[c_comp].clear()
+
         return new_leaves
 
     while True:
         new_leaves = prune_leaves(leaves)
-        if len(new_leaves) <= 1:
+        if not new_leaves:
             break
         leaves = new_leaves
 
-    # if len(leaves) < 3:
-    #    final = full_mask
-    #    for c in leaves:
-    #        final ^= c
-    #    leaves.add(final)
+    leaves_xor = full_mask
+    for c in leaves:
+        leaves_xor ^= c
+    if leaves_xor:
+        leaves.add(leaves_xor)
 
     return leaves
 
@@ -149,9 +158,18 @@ def rooted_shape_signature(clade: int, adj_map: dict[int, set[int]]):
     return tuple(sorted(children_sig, key=lambda x: str(x)))
 
 
-def center_shape_signature(center_clades: set[int], adj_map: dict[int, set[int]]):
-    tripartition_sig = (rooted_shape_signature(c, adj_map) for c in center_clades)
-    return tuple(sorted(tripartition_sig, key=lambda x: str(x)))
+def center_shape_signature(center_clades: set[int], adj_map: dict[int, set[int]], num_taxa: int):
+    if len(center_clades) == 3:
+        tripartition_sig = (rooted_shape_signature(c, adj_map) for c in center_clades)
+        return tuple(sorted(tripartition_sig, key=lambda x: str(x)))
+    else:
+        bicenter_sig_options = []
+        full_mask = (1 << num_taxa) - 1
+        for c in center_clades:
+            c_comp = full_mask ^ c
+            tripartition_sig = (rooted_shape_signature(n, adj_map) for n in {c} | adj_map[c_comp])
+            bicenter_sig_options.append(tuple(sorted(tripartition_sig, key=lambda x: str(x))))
+        return min(bicenter_sig_options, key=lambda x: str(x))
 
 
 def rooted_remainder_parent_map(remainder: int, remainder_clades: set[int]) -> tuple[dict[int, int], set[int]]:
@@ -427,9 +445,13 @@ if __name__ == "__main__":
     compat = calculate_split_compatibility(splits, num_taxa)
     topologies, topologies_splits = generate_all_topologies(splits, compat, num_taxa)
     shape_sig_set = set()
+
     for topo in tqdm(topologies):
+
         adj_map = generate_clade_adjacency_mapping(topo, num_taxa)
         center_clades = find_center_clades(adj_map, num_taxa)
-        shape_sig = center_shape_signature(center_clades, adj_map)
+        shape_sig = center_shape_signature(center_clades, adj_map, num_taxa)
         shape_sig_set.add(shape_sig)
-    print(len(shape_sig_set))
+
+    for i, shape in enumerate(shape_sig_set):
+        print(i, shape)
