@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.special import factorial2
 from scipy.sparse import csr_matrix
+from scipy.sparse.csgraph import shortest_path
 from tqdm import tqdm
 from umap import UMAP
 from sklearn.cluster import KMeans, HDBSCAN
@@ -10,7 +11,7 @@ import warnings
 from tree_space_spr import generate_all_internal_splits, calculate_split_compatibility, generate_all_topologies, \
     full_clade_set, partition_clade_set, rooted_remainder_parent_map, spr_move_from_clades, \
     canonical_internal_mask_from_clades, canonical_tree_from_clade_set, newick_from_labeled_tree, \
-    calculate_topology_quartet_matrix
+    calculate_topology_quartet_matrix, enumerate_quartet_resolutions, split_displays_quartet_resolution
 from tree_space_eval import prepare_alignment, evaluate_or_reuse_likelihoods
 from tree_space_umap import evaluate_or_reuse_umap, embedding_to_rgb
 from tree_space_plot import plot_umap_heatmap, plot_umap_rgb, plot_umap_categories
@@ -71,7 +72,40 @@ topology_split_mean = masked_sizes.mean(axis=1)
 
 print("\n#4 Calculating quartet matrix from topology bitmasks")
 
-topology_quartet_matrix = calculate_topology_quartet_matrix(topologies, num_taxa)
+quartets, resolutions, quartet_col_ranges = enumerate_quartet_resolutions(num_taxa)
+num_cols = len(resolutions)
+
+
+def caclulate_topology_quartet_resolutions(i: int):
+    topo = topologies[i]
+    M = np.zeros(num_cols, dtype=bool)
+
+    for q_idx, (start, end) in enumerate(quartet_col_ranges):
+        found = False
+
+        for col in range(start, end):
+            Pmask, Qmask = resolutions[col]
+
+            if any(split_displays_quartet_resolution(m, Pmask, Qmask) for m in topo):
+                M[col] = True
+                found = True
+                break
+
+        if not found:
+            raise ValueError(
+                f"Topology {i} did not resolve quartet {q_idx}; "
+                "unexpected for a fully resolved binary tree."
+            )
+
+    return M
+
+
+topology_quartet_matrix = np.empty((num_topologies, num_cols), dtype=bool)
+with Pool(int(threads)) as p:
+    for i, row_mask in enumerate(tqdm(p.imap(caclulate_topology_quartet_resolutions, range(num_topologies)),
+                                      total=num_topologies)):
+        topology_quartet_matrix[i, :] = row_mask
+
 assert np.all(topology_quartet_matrix.sum(axis=1) == math.comb(num_taxa, 4))
 
 # -----------------------------------------
@@ -79,28 +113,30 @@ assert np.all(topology_quartet_matrix.sum(axis=1) == math.comb(num_taxa, 4))
 # -----------------------------------------
 
 print("\n#4 Deriving labeled trees, unlabeled shapes and newick representations from topologies")
-topologies_unlabeled_shapes = []
-topologies_labeled_trees = []
-topologies_newicks: list[str] = []
 
-for topo in tqdm(topologies, total=num_topologies):
+
+def derive_tree_from_topology(i):
+    topo = topologies[i]
     topo_clades = full_clade_set(topo, num_taxa)
     unlabeled_shape, labeled_tree = canonical_tree_from_clade_set(topo_clades, num_taxa)
-
-    topologies_unlabeled_shapes.append(unlabeled_shape)
-    topologies_labeled_trees.append(labeled_tree)
-
     newick = newick_from_labeled_tree(labeled_tree, taxa_names)
+    return unlabeled_shape, labeled_tree, newick
 
-    topologies_newicks.append(newick)
 
-shape_to_id = {}
+topology_labeled_trees = [None] * num_topologies
+topology_newicks = [""] * num_topologies
 topology_shape_ids = np.empty(num_topologies, dtype=np.int32)
+shape_to_id = {}
 
-for i, shape in enumerate(topologies_unlabeled_shapes):
-    if shape not in shape_to_id:
-        shape_to_id[shape] = len(shape_to_id)
-    topology_shape_ids[i] = shape_to_id[shape]
+with Pool(int(threads)) as p:
+    for i, (shape, tree, newick) in enumerate(tqdm(p.imap(derive_tree_from_topology, range(num_topologies)),
+                                                   total=num_topologies)):
+        topology_labeled_trees[i] = tree
+        topology_newicks[i] = newick
+
+        if shape not in shape_to_id:
+            shape_to_id[shape] = len(shape_to_id)
+        topology_shape_ids[i] = shape_to_id[shape]
 
 num_shapes = len(shape_to_id)
 print(f"• Number of unique unlabeled shapes: {num_shapes}")
@@ -111,7 +147,7 @@ print(f"• Number of unique unlabeled shapes: {num_shapes}")
 
 print("\n#4 Evaluating likelihood of all newick representations from topologies")
 likelihoods, reusable = evaluate_or_reuse_likelihoods(
-    eval_dir, raxmlng_path, records, model_path, topologies_newicks, threads)
+    eval_dir, raxmlng_path, records, model_path, topology_newicks, threads)
 if reusable:
     print("• Found existing likelihood calculations to reuse")
 
@@ -183,6 +219,9 @@ with Pool(int(threads)) as p:
 n_neighbors = len(topology_neighbor_sets[0])
 topology_adj_matrix = build_sparse_spr_adj_matrix(topology_neighbor_sets)
 
+topology_dist_to_ml = shortest_path(topology_adj_matrix, indices=ml_idx)
+
+
 # --------------------------------------------
 # - Creating SPR graph embeddings using UMAP -
 # --------------------------------------------
@@ -253,6 +292,13 @@ plot_umap_heatmap(
     colorbar_label="Quartet distance to ML tree",
 )
 
+plot_umap_heatmap(
+    embedding_adj,
+    -topology_dist_to_ml,
+    save_path=f"umap_adj_dist_to_ml_nn{n_neighbors}.png",
+    title="SPR graph UMAP colored by SPR distance to ML topology",
+    colorbar_label="SPR distance to ML tree",
+)
 
 print("\n#8 HDBSCAN clustering on SPR UMAP embedding")
 hdbscan = HDBSCAN(min_cluster_size=5000, min_samples=5)
@@ -320,10 +366,12 @@ for i, top_k_idxs in enumerate(all_clusters_top_k):
         colorbar_label="Average Quartet Distance",
     )
 
-topology_cluster_avg_qd = np.array(all_avg_topology_qd).T
-print(topology_cluster_avg_qd.shape)
-pca = UMAP(n_components=3)
-topology_cluster_qd_pca = pca.fit_transform(topology_cluster_avg_qd)
-topology_cluster_qd_rgb = embedding_to_rgb(topology_cluster_qd_pca)
+    avg_topology_dist = shortest_path(topology_adj_matrix, indices=top_k_idxs).mean(axis=0)
 
-plot_umap_rgb(embedding_adj, topology_cluster_qd_rgb, "umap_adj_cluster_rgb", "Title")
+    plot_umap_heatmap(
+        embedding_adj,
+        -avg_topology_dist,  # Negative for heatmap styling if desired
+        save_path=f"umap_adj_avg_dist_cluster{i}_k{top_k}.png",
+        title=f"Avg SPR distance to top {len(top_k_idxs)} medoids in Cluster {i}",
+        colorbar_label="Average SPR Distance",
+    )

@@ -1,5 +1,7 @@
 import numpy as np
 from itertools import combinations
+from copy import deepcopy
+from tqdm import tqdm
 
 
 def _is_compatible(mask1: int, mask2: int, full_mask: int) -> bool:
@@ -72,12 +74,84 @@ def generate_all_topologies(all_splits: np.ndarray, compat: np.ndarray, num_taxa
 
 def full_clade_set(internal_masks: np.ndarray, num_taxa: int) -> set[int]:
     full_mask = (1 << num_taxa) - 1
-    clades = {1 << i for i in range(num_taxa)}
+    clades = set()
+    for i in range(num_taxa):
+        m = 1 << i
+        clades.add(m)
+        clades.add(full_mask ^ m)
     for m in internal_masks:
         m = int(m)
         clades.add(m)
         clades.add(full_mask ^ m)
     return clades
+
+
+def generate_clade_adjacency_mapping(internal_masks: np.ndarray, num_taxa: int) -> dict[int, set[int]]:
+    all_clades = full_clade_set(internal_masks, num_taxa)
+    full_mask = (1 << num_taxa) - 1
+    adj_map = {}
+
+    def map_clade_neighbors(clade: int, option_clades: set[int]):
+        subs = {c for c in option_clades if c != clade and (c & clade == c)}
+        neighbors = {c for c in subs if not any((c != d and (c & d) == c) for d in subs)}
+        adj_map[clade] = neighbors
+
+        for c in neighbors:
+            if c not in adj_map:
+                map_clade_neighbors(c, subs)
+
+        comp = full_mask ^ clade
+        if comp not in adj_map:
+            map_clade_neighbors(comp, all_clades - subs)
+
+    start_clade = int(internal_masks[0])
+    map_clade_neighbors(start_clade, all_clades)
+    return adj_map
+
+
+def find_center_clades(adj_map: dict[int, set[int]], num_taxa: int):
+    full_mask = (1 << num_taxa) - 1
+    adj_map = deepcopy(adj_map)
+    leaves = {1 << i for i in range(num_taxa)}
+
+    def prune_leaves(leaves: set[int]):
+        new_leaves = set()
+        for c in leaves:
+            c_comp = full_mask ^ c
+            for n in adj_map[c_comp]:
+                n_comp = full_mask ^ n
+                adj_map[n_comp].remove(c)
+                if not adj_map[n_comp]:
+                    new_leaves.add(n_comp)
+            adj_map[c_comp].clear()
+        return new_leaves
+
+    while True:
+        new_leaves = prune_leaves(leaves)
+        if len(new_leaves) <= 1:
+            break
+        leaves = new_leaves
+
+    # if len(leaves) < 3:
+    #    final = full_mask
+    #    for c in leaves:
+    #        final ^= c
+    #    leaves.add(final)
+
+    return leaves
+
+
+def rooted_shape_signature(clade: int, adj_map: dict[int, set[int]]):
+    if not adj_map[clade]:
+        return None
+
+    children_sig = (rooted_shape_signature(n, adj_map) for n in adj_map[clade])
+    return tuple(sorted(children_sig, key=lambda x: str(x)))
+
+
+def center_shape_signature(center_clades: set[int], adj_map: dict[int, set[int]]):
+    tripartition_sig = (rooted_shape_signature(c, adj_map) for c in center_clades)
+    return tuple(sorted(tripartition_sig, key=lambda x: str(x)))
 
 
 def rooted_remainder_parent_map(remainder: int, remainder_clades: set[int]) -> tuple[dict[int, int], set[int]]:
@@ -295,6 +369,30 @@ def split_displays_quartet_resolution(split_mask: int, Pmask: int, Qmask: int) -
     )
 
 
+def caclulate_topology_quartet_resolutions(topology: np.ndarray, resolutions: list, quartet_col_ranges: list):
+    num_cols = len(resolutions)
+    M = np.zeros(num_cols, dtype=bool)
+
+    for q_idx, (start, end) in enumerate(quartet_col_ranges):
+        found = False
+
+        for col in range(start, end):
+            Pmask, Qmask = resolutions[col]
+
+            if any(split_displays_quartet_resolution(m, Pmask, Qmask) for m in topology):
+                M[col] = True
+                found = True
+                break
+
+        if not found:
+            raise ValueError(
+                f"Topology {i} did not resolve quartet {q_idx}; "
+                "unexpected for a fully resolved binary tree."
+            )
+
+    return M
+
+
 def calculate_topology_quartet_matrix(topologies: np.ndarray, num_taxa: int) -> np.ndarray:
     _, resolutions, quartet_col_ranges = enumerate_quartet_resolutions(num_taxa)
 
@@ -321,3 +419,17 @@ def calculate_topology_quartet_matrix(topologies: np.ndarray, num_taxa: int) -> 
                 )
 
     return M
+
+
+if __name__ == "__main__":
+    num_taxa = 9
+    splits, split_sizes = generate_all_internal_splits(9)
+    compat = calculate_split_compatibility(splits, num_taxa)
+    topologies, topologies_splits = generate_all_topologies(splits, compat, num_taxa)
+    shape_sig_set = set()
+    for topo in tqdm(topologies):
+        adj_map = generate_clade_adjacency_mapping(topo, num_taxa)
+        center_clades = find_center_clades(adj_map, num_taxa)
+        shape_sig = center_shape_signature(center_clades, adj_map)
+        shape_sig_set.add(shape_sig)
+    print(len(shape_sig_set))
